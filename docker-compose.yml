@@ -1,0 +1,84 @@
+version: "3.9"
+
+services:
+  user-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: yingo
+      POSTGRES_PASSWORD: yingo123
+      POSTGRES_DB: cold_user
+    volumes:
+      - user-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yingo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  chat-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: yingo
+      POSTGRES_PASSWORD: yingo123
+      POSTGRES_DB: cold_chat
+    volumes:
+      - chat-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yingo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  chat-cache:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  user-service:
+    image: yingo-user:local
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      DATABASE_URL: postgres://yingo:yingo123@user-db:5432/cold_user
+      CORS_ORIGINS: "https://chats.344977.xyz,http://localhost:3000"
+      ADMIN_USERNAME: ""
+      INTERNAL_API_KEY: "${INTERNAL_API_KEY:-dev-internal-key-change-in-production}"
+      PEPPER_SECRET: "${PEPPER_SECRET:-dev-pepper-change-in-production}"
+      TOKEN_SECRET: "${TOKEN_SECRET:-dev-token-secret-change-in-production}"
+      SSL_CERT: "${SSL_CERT:-}"
+      SSL_KEY: "${SSL_KEY:-}"
+      LOG_LEVEL: info
+    depends_on:
+      user-db:
+        condition: service_healthy
+
+  chat-service:
+    image: yingo-chat:local
+    restart: unless-stopped
+    ports:
+      - "9001:9001"
+    environment:
+      DATABASE_URL: postgres://yingo:yingo123@chat-db:5432/cold_chat
+      REDIS_URL: redis://chat-cache:6379
+      USER_SERVICE_URL: http://user-service:9000
+      CORS_ORIGINS: "https://chats.344977.xyz,http://localhost:3000"
+      INTERNAL_API_KEY: "${INTERNAL_API_KEY:-dev-internal-key-change-in-production}"
+      SSL_CERT: "${SSL_CERT:-}"
+      SSL_KEY: "${SSL_KEY:-}"
+      LOG_LEVEL: info
+    depends_on:
+      chat-db:
+        condition: service_healthy
+      chat-cache:
+        condition: service_healthy
+
+volumes:
+  user-db-data:
+  chat-db-data:

@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yingo User Service</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>US</text></svg>">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#f5f5f5;--card:#fff;--border:#e0e0e0;--text:#1a1a1a;--text2:#666;--accent:#0078d4;--accent-hover:#106ebe;--danger:#a4262c;--danger-hover:#881f24;--success:#0e7a0d;--radius:8px;--shadow:0 2px 8px rgba(0,0,0,.06);--warn-bg:#fff3cd;--warn-text:#856404}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.header{background:var(--card);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100}
+.header h1{font-size:16px;font-weight:600}
+.header .badge{font-size:11px;background:var(--accent);color:#fff;padding:1px 7px;border-radius:10px}
+.header .user-info{margin-left:auto;font-size:12px;color:var(--text2);display:flex;align-items:center;gap:8px}
+.container{max-width:1280px;margin:0 auto;padding:16px 24px}
+.tabs{display:flex;gap:3px;background:var(--card);border-radius:var(--radius);padding:3px;margin-bottom:16px;border:1px solid var(--border);flex-wrap:wrap}
+.tab{padding:7px 14px;border-radius:5px;cursor:pointer;font-size:13px;color:var(--text2);transition:.15s;white-space:nowrap}
+.tab:hover{background:#f0f0f0}.tab.active{background:var(--accent);color:#fff}
+.panel{display:none}.panel.active{display:block}
+.card{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
+.card h3{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2)}
+.stat-row{display:flex;gap:12px;flex-wrap:wrap}
+.stat{flex:1;min-width:120px;background:#f9f9f9;border-radius:6px;padding:14px;text-align:center}
+.stat .value{font-size:24px;font-weight:700;color:var(--accent)}
+.stat .label{font-size:11px;color:var(--text2);margin-top:3px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:8px 10px;border-bottom:2px solid var(--border);color:var(--text2);font-weight:600;white-space:nowrap}
+td{padding:7px 10px;border-bottom:1px solid #f0f0f0;word-break:break-all}
+tr:hover td{background:#fafafa}
+b,p{font-size:13px;line-height:1.6}
+.bg-ok{background:#dff6dd;color:#0e7a0d;padding:1px 7px;border-radius:4px;font-size:11px}
+.bg-err{background:#fde7e9;color:#a4262c;padding:1px 7px;border-radius:4px;font-size:11px}
+.bg-warn{background:var(--warn-bg);color:var(--warn-text);padding:1px 7px;border-radius:4px;font-size:11px}
+.bg-admin{background:var(--warn-bg);color:var(--warn-text);padding:1px 7px;border-radius:4px;font-size:11px}
+.bg-user{background:#e8f4fd;color:#0078d4;padding:1px 7px;border-radius:4px;font-size:11px}
+.bg-scope{background:#e8f4fd;color:#0078d4;padding:1px 5px;border-radius:3px;font-size:10px;font-family:monospace}
+.row{display:flex;gap:8px;margin-bottom:6px;align-items:center;flex-wrap:wrap}
+.row label{font-size:12px;color:var(--text2);min-width:70px;flex-shrink:0}
+.row input,.row textarea,.row select{flex:1;min-width:120px;padding:7px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;outline:none;transition:.15s;font-family:inherit}
+.row input:focus,.row textarea:focus,.row select:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,120,212,.15)}
+textarea{resize:vertical;min-height:50px;font-family:monospace;font-size:11px}
+button{padding:7px 14px;border:none;border-radius:5px;cursor:pointer;font-size:12px;font-weight:500;transition:.15s;white-space:nowrap}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.primary{background:var(--accent);color:#fff}button.primary:hover:not(:disabled){background:var(--accent-hover)}
+button.danger{background:var(--danger);color:#fff}button.danger:hover:not(:disabled){background:var(--danger-hover)}
+button.sec{background:#f0f0f0;color:var(--text)}button.sec:hover:not(:disabled){background:#e0e0e0}
+button.small{padding:3px 8px;font-size:11px;margin:0 1px}
+pre{background:#f5f5f5;border-radius:5px;padding:10px;font-size:11px;overflow-x:auto;max-height:250px;overflow-y:auto;font-family:monospace;word-break:break-all}
+.empty{text-align:center;padding:30px;color:var(--text2);font-size:13px}
+.loading{text-align:center;padding:15px;color:var(--text2);font-size:12px}
+.sk{background:linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%);background-size:200% 100%;animation:sk 1.2s infinite;border-radius:4px;display:inline-block;height:12px;margin:2px 0}
+@keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.gap{margin-right:6px}
+.mt{margin-top:8px}
+.mb{margin-bottom:8px}
+code{font-family:monospace;font-size:11px;background:#f5f5f5;padding:1px 4px;border-radius:3px}
+.search input{padding:6px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;max-width:200px}
+.toast{position:fixed;top:16px;right:16px;z-index:999;padding:10px 16px;border-radius:6px;font-size:12px;box-shadow:0 4px 12px rgba(0,0,0,.15);transition:opacity .3s;max-width:400px;word-break:break-all}
+.toast-success{background:#dff6dd;color:#0e7a0d}
+.toast-error{background:#fde7e9;color:#a4262c}
+.toast-info{background:#e8f4fd;color:#0078d4}
+@media(max-width:768px){.stat-row{flex-direction:column}.row{flex-direction:column;align-items:stretch}.row label{min-width:auto}.header{padding:10px 12px}.container{padding:12px}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Yingo User Service</h1>
+  <span class="badge">v1</span>
+  <span id="statusBadge" class="bg-err">检查中...</span>
+  <div class="user-info" id="userInfo" style="display:none">
+    <span id="userNameDisplay"></span>
+    <span id="userPermBadge"></span>
+    <button class="sec" onclick="app.auth.logout()" style="padding:3px 10px">退出</button>
+  </div>
+</div>
+
+<div class="container">
+  <div id="loginPage" style="max-width:360px;margin:50px auto">
+    <div class="card" style="padding:28px">
+      <b style="font-size:16px;display:block;text-align:center;margin-bottom:16px">用户服务面板登录</b>
+      <div class="row"><input id="loginUser" placeholder="用户名" autocomplete="username"></div>
+      <div class="row"><input id="loginPass" type="password" placeholder="密码" autocomplete="current-password"></div>
+      <button class="primary" onclick="app.login()" id="loginBtn" style="width:100%;padding:9px">登录</button>
+      <p id="loginError" class="mt" style="color:#a4262c;font-size:12px;text-align:center;display:none"></p>
+    </div>
+  </div>
+
+  <div id="dashboard" style="display:none">
+    <div class="tabs" id="tabBar"></div>
+    <div id="pageContainer"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+// ═══════════════════════════════════════════════
+// Config
+// ═══════════════════════════════════════════════
+const CFG = {
+  userApi: 'http://server.344977.xyz:9000',
+  chatApi: 'http://server.344977.xyz:9001',
+  storageKey: 'yu_'  // prefix for localStorage
+};
+
+// ═══════════════════════════════════════════════
+// XSS
+// ═══════════════════════════════════════════════
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ═══════════════════════════════════════════════
+// DOM
+// ═══════════════════════════════════════════════
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+function qs(id) { return document.getElementById(id); }
+
+function html(strings, ...vals) {
+  let r = '';
+  strings.forEach((s, i) => { r += s + (i < vals.length ? esc(vals[i]) : ''); });
+  return r;
+}
+
+// ═══════════════════════════════════════════════
+// Toast
+// ═══════════════════════════════════════════════
+function toast(msg, type) {
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + (type || 'info');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3000);
+}
+
+// ═══════════════════════════════════════════════
+// API Client
+// ═══════════════════════════════════════════════
+class ApiError extends Error {
+  constructor(msg, status, data) { super(msg); this.status = status; this.data = data; }
+}
+
+class ApiClient {
+  constructor(baseUrl) { this.baseUrl = baseUrl; }
+
+  _headers() {
+    const h = { 'Content-Type': 'application/json' };
+    const t = app.state.token;
+    if (t) h['Authorization'] = 'Bearer ' + t;
+    return h;
+  }
+
+  _fetch(method, path, body) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const opts = { method, headers: this._headers(), signal: controller.signal };
+    if (body && method !== 'GET' && method !== 'DELETE') opts.body = JSON.stringify(body);
+
+    return fetch(this.baseUrl + path, opts).then(async r => {
+      clearTimeout(timeout);
+      let data;
+      try { data = await r.json(); } catch { data = null; }
+      if (r.status === 401 && app.state.token) {
+        app.auth.logout();
+        throw new ApiError('登录已过期，请重新登录', 401, data);
+      }
+      if (!r.ok) throw new ApiError(data?.error || r.statusText, r.status, data);
+      return data;
+    }).catch(e => {
+      clearTimeout(timeout);
+      if (e.name === 'AbortError') throw new ApiError('请求超时', 0, null);
+      if (e instanceof ApiError) throw e;
+      throw new ApiError('网络错误: ' + e.message, 0, null);
+    });
+  }
+
+  get(path) { return this._fetch('GET', path); }
+  post(path, body) { return this._fetch('POST', path, body || {}); }
+  put(path, body) { return this._fetch('PUT', path, body || {}); }
+  del(path) { return this._fetch('DELETE', path); }
+}
+
+// ═══════════════════════════════════════════════
+// Auth
+// ═══════════════════════════════════════════════
+class AuthService {
+  constructor(storageKey) { this.key = storageKey; }
+
+  restore() {
+    try {
+      const raw = localStorage.getItem(this.key + 'state');
+      if (!raw) return null;
+      const s = JSON.parse(raw);
+      if (!s.token || !s.perm) return null;
+      return s;
+    } catch { return null; }
+  }
+
+  save(state) {
+    localStorage.setItem(this.key + 'state', JSON.stringify({
+      token: state.token, perm: state.perm, userId: state.userId, userName: state.userName
+    }));
+  }
+
+  clear() {
+    localStorage.removeItem(this.key + 'state');
+  }
+
+  async login(username, password) {
+    const data = await app.api.post('/api/v1/login', { username, password });
+    const state = {
+      token: data.long_token, perm: data.permission,
+      userId: data.user_id, userName: username
+    };
+    this.save(state);
+    return state;
+  }
+
+  logout() {
+    this.clear();
+    app.state.token = '';
+    app.state.perm = '';
+    app.state.userId = '';
+    app.state.userName = '';
+    // reset UI
+    qs('loginPage').style.display = 'block';
+    qs('dashboard').style.display = 'none';
+    qs('userInfo').style.display = 'none';
+    if (app._healthTimer) { clearInterval(app._healthTimer); app._healthTimer = null; }
+    if (app._currentPage && app._currentPage.destroy) app._currentPage.destroy();
+    app._currentPage = null;
+  }
+}
+
+// ═══════════════════════════════════════════════
+// Format
+// ═══════════════════════════════════════════════
+function fmtTime(ms) {
+  if (!ms) return '-';
+  const diff = Date.now() - ms, abs = Math.abs(diff), s = Math.floor(abs / 1000);
+  if (s < 60) return Math.floor(s) + (diff > 0 ? '秒前' : '秒后');
+  if (s < 3600) return Math.floor(s / 60) + (diff > 0 ? '分钟前' : '分钟后');
+  if (s < 86400) return Math.floor(s / 3600) + (diff > 0 ? '小时前' : '小时后');
+  if (s < 2592000) return Math.floor(s / 86400) + (diff > 0 ? '天前' : '天后');
+  return new Date(ms).toLocaleDateString('zh-CN');
+}
+function fmtUptime(s) {
+  if (s < 60) return Math.floor(s) + '秒';
+  if (s < 3600) return Math.floor(s / 60) + '分' + Math.floor(s % 60) + '秒';
+  return Math.floor(s / 3600) + '时' + Math.floor((s % 3600) / 60) + '分';
+}
+function fmtMem(b) { return (b / 1024 / 1024).toFixed(1) + ' MB'; }
+
+// ═══════════════════════════════════════════════
+// UI helpers
+// ═══════════════════════════════════════════════
+function showLoading(container) {
+  if (typeof container === 'string') container = qs(container);
+  container.innerHTML = '<div class="loading">加载中...</div>';
+}
+function showEmpty(container, msg) {
+  if (typeof container === 'string') container = qs(container);
+  container.innerHTML = '<div class="empty">' + esc(msg || '暂无数据') + '</div>';
+}
+function showError(container, msg) {
+  if (typeof container === 'string') container = qs(container);
+  container.innerHTML = '<div class="empty" style="color:#a4262c">' + esc(msg || '未知错误') + '</div>';
+}
+function badge(type, text) {
+  return '<span class="bg-' + type + '">' + esc(text) + '</span>';
+}
+function permBadge(p) {
+  return badge(p === 'admin' ? 'admin' : 'user', p === 'admin' ? '管理员' : '用户');
+}
+
+// ═══════════════════════════════════════════════
+// Application
+// ═══════════════════════════════════════════════
+class App {
+  constructor() {
+    this.api = new ApiClient(CFG.userApi);
+    this.chatApi = new ApiClient(CFG.chatApi);
+    this.auth = new AuthService(CFG.storageKey);
+    this.state = { token: '', perm: '', userId: '', userName: '' };
+    this._currentPage = null;
+    this._healthTimer = null;
+    this._pageInstances = {};
+  }
+
+  init() {
+    const saved = this.auth.restore();
+    if (saved && saved.token) {
+      Object.assign(this.state, saved);
+      this.showDashboard();
+    }
+    this.startHealthCheck();
+  }
+
+  async login() {
+    const username = qs('loginUser').value.trim();
+    const password = qs('loginPass').value;
+    if (!username || !password) return;
+    const btn = qs('loginBtn');
+    btn.disabled = true; btn.textContent = '登录中...';
+    qs('loginError').style.display = 'none';
+    try {
+      const state = await this.auth.login(username, password);
+      Object.assign(this.state, state);
+      this.showDashboard();
+    } catch (e) {
+      qs('loginError').textContent = '登录失败: ' + e.message;
+      qs('loginError').style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '登录';
+    }
+  }
+
+  showDashboard() {
+    qs('loginPage').style.display = 'none';
+    qs('dashboard').style.display = 'block';
+    qs('userNameDisplay').textContent = this.state.userName;
+    qs('userPermBadge').className = this.state.perm === 'admin' ? 'bg-admin' : 'bg-user';
+    qs('userPermBadge').textContent = this.state.perm === 'admin' ? '管理员' : '用户';
+    qs('userInfo').style.display = 'flex';
+    this.renderTabs();
+  }
+
+  renderTabs() {
+    const isAdmin = this.state.perm === 'admin';
+    const tabs = isAdmin ? [
+      { id: 'overview', label: '概览' },
+      { id: 'users', label: '用户管理' },
+      { id: 'tokens', label: 'Token管理' },
+      { id: 'apikeys', label: 'API密钥' },
+      { id: 'chat-proxy', label: '聊天代理' },
+      { id: 'profile', label: '我的资料' },
+    ] : [
+      { id: 'profile', label: '我的资料' },
+      { id: 'my-tokens', label: '我的Token' },
+      { id: 'my-apikeys', label: '我的密钥' },
+    ];
+
+    const bar = qs('tabBar');
+    bar.innerHTML = tabs.map((t, i) =>
+      '<div class="tab' + (i === 0 ? ' active' : '') + '" data-id="' + t.id + '">' + esc(t.label) + '</div>'
+    ).join('');
+
+    $$('.tab').forEach(el => {
+      el.onclick = () => {
+        $$('.tab').forEach(x => x.classList.remove('active'));
+        el.classList.add('active');
+        this.switchPage(el.dataset.id);
+      };
+    });
+
+    this.switchPage(tabs[0].id);
+  }
+
+  switchPage(pageId) {
+    if (this._currentPage && this._currentPage.destroy) this._currentPage.destroy();
+
+    const container = qs('pageContainer');
+    container.innerHTML = '';
+
+    const pages = {
+      'overview': () => new OverviewPage(container),
+      'users': () => new UsersPage(container),
+      'tokens': () => new TokensPage(container),
+      'apikeys': () => new ApiKeysPage(container),
+      'chat-proxy': () => new ChatProxyPage(container),
+      'profile': () => new ProfilePage(container),
+      'my-tokens': () => new MyTokensPage(container),
+      'my-apikeys': () => new MyApiKeysPage(container),
+    };
+
+    const page = pages[pageId];
+    if (page) {
+      this._currentPage = page();
+      if (this._currentPage.mount) this._currentPage.mount();
+    }
+  }
+
+  startHealthCheck() {
+    const check = () => {
+      if (!this.state.token) return;
+      Promise.all([
+        this.api.get('/api/v1/health').catch(() => null),
+        this.api.get('/api/v1/ready').catch(() => null),
+        this.api.get('/api/v1/metrics').catch(() => null),
+      ]).then(([h, r, m]) => {
+        const badge = qs('statusBadge');
+        if (h && r && r.ok) {
+          badge.textContent = '运行中';
+          badge.className = 'bg-ok';
+        } else {
+          badge.textContent = '异常';
+          badge.className = 'bg-err';
+        }
+        // update overview stats if visible
+        const statUptime = qs('statUptime');
+        if (statUptime && m) {
+          qs('statUptime').textContent = fmtUptime(m.uptime);
+          qs('statMemory').textContent = fmtMem(m.memory.rss);
+        }
+      });
+    };
+    check();
+    this._healthTimer = setInterval(check, 30000);
+  }
+}
+
+// ═══════════════════════════════════════════════
+// Pages
+// ═══════════════════════════════════════════════
+
+class OverviewPage {
+  constructor(container) { this.container = container; this._timer = null; }
+  mount() {
+    this.container.innerHTML =
+      '<div class="stat-row mb">' +
+        '<div class="stat"><div class="value" id="statUsers">-</div><div class="label">用户数</div></div>' +
+        '<div class="stat"><div class="value" id="statTokens">-</div><div class="label">Token数</div></div>' +
+        '<div class="stat"><div class="value" id="statUptime">-</div><div class="label">运行时间</div></div>' +
+        '<div class="stat"><div class="value" id="statMemory">-</div><div class="label">内存使用</div></div>' +
+      '</div>' +
+      '<div class="card"><h3>服务状态</h3><div id="healthInfo"><div class="loading">加载中...</div></div></div>' +
+      '<div class="card"><h3>就绪检查</h3><div id="readyInfo"><div class="loading">加载中...</div></div></div>';
+    this._load();
+    this._timer = setInterval(() => this._load(), 15000);
+  }
+  destroy() { if (this._timer) clearInterval(this._timer); }
+  async _load() {
+    try {
+      const [h, r, m, ur, tr] = await Promise.all([
+        app.api.get('/api/v1/health').catch(() => null),
+        app.api.get('/api/v1/ready').catch(() => null),
+        app.api.get('/api/v1/metrics').catch(() => null),
+        app.api.get('/api/v1/admin/users').catch(() => null),
+        app.api.get('/api/v1/admin/tokens').catch(() => null),
+      ]);
+      if (h) qs('healthInfo').innerHTML = '<p>状态: ' + badge('ok', 'OK') + ' | 服务: ' + esc(h.service) + ' | PID: ' + esc(h.pid || '-') + '</p>';
+      else qs('healthInfo').innerHTML = '<p style="color:#a4262c">无法连接健康检查</p>';
+      if (r) qs('readyInfo').innerHTML = '<p>数据库: ' + badge(r.db === 'ok' ? 'ok' : 'err', r.db) + '</p>';
+      else qs('readyInfo').innerHTML = '<p style="color:#a4262c">无法连接就绪检查</p>';
+      if (m) { qs('statUptime').textContent = fmtUptime(m.uptime); qs('statMemory').textContent = fmtMem(m.memory.rss); }
+      if (ur && ur.ok) qs('statUsers').textContent = ur.total;
+      if (tr && tr.ok) qs('statTokens').textContent = tr.total;
+    } catch (e) {
+      if (e.name !== 'AbortError') {
+        qs('healthInfo').innerHTML = '<p style="color:#a4262c">无法连接服务: ' + esc(e.message) + '</p>';
+      }
+    }
+  }
+}
+
+class UsersPage {
+  constructor(container) { this.container = container; this._users = []; }
+  mount() {
+    this.container.innerHTML =
+      '<div class="card">' +
+        '<div class="flex mb">' +
+          '<h3 style="margin:0">用户列表</h3>' +
+          '<div class="search"><input id="userSearch" placeholder="搜索用户名或ID..." oninput="app._currentPage._filter()"></div>' +
+          '<button class="primary small" onclick="app._currentPage._load()">刷新</button>' +
+          '<button class="sec small" onclick="app._currentPage._showCreate()">+ 新建用户</button>' +
+        '</div>' +
+        '<div id="usersTable"><div class="loading">加载中...</div></div>' +
+      '</div>' +
+      '<div class="card" id="userDetailCard" style="display:none"><div id="userDetail"></div></div>';
+    this._load();
+  }
+  destroy() { this._users = []; }
+
+  _filter() {
+    const q = qs('userSearch').value.toLowerCase();
+    const filtered = q ? this._users.filter(u =>
+      u.globalName.toLowerCase().includes(q) || u.id.toLowerCase().includes(q)
+    ) : this._users;
+    this._render(filtered);
+  }
+
+  async _load() {
+    const table = qs('usersTable');
+    showLoading(table);
+    try {
+      const d = await app.api.get('/api/v1/admin/users');
+      this._users = d.users || [];
+      qs('userSearch').value = '';
+      this._render(this._users);
+    } catch (e) {
+      if (e.name !== 'AbortError') showError(table, e.message);
+    }
+  }
+
+  _render(users) {
+    const table = qs('usersTable');
+    if (!users.length) { showEmpty(table); return; }
+    let h = '<table><tr><th>ID</th><th>全局名</th><th>权限</th><th>在线</th><th>注册</th><th>操作</th></tr>';
+    users.forEach(u => {
+      const isSelf = u.id === app.state.userId;
+      h += '<tr><td><code>' + esc(u.id) + '</code></td>' +
+        '<td>' + esc(u.globalName) + '</td>' +
+        '<td>' + permBadge(u.permission) + '</td>' +
+        '<td>' + (u.online ? badge('ok', '在线') : badge('err', '离线')) + '</td>' +
+        '<td>' + fmtTime(u.createdAt) + '</td>' +
+        '<td>' +
+          '<button class="sec small" onclick="app._currentPage._viewDetail(\'' + u.id + '\')">详情</button>' +
+          (u.permission !== 'admin' ? '<button class="sec small" onclick="app._currentPage._promote(\'' + u.id + '\',\'' + esc(u.globalName) + '\')">提升</button>' : '') +
+          (!isSelf ? '<button class="danger small" onclick="app._currentPage._delete(\'' + u.id + '\',\'' + esc(u.globalName) + '\')">删除</button>' : '<span style="color:var(--text2);font-size:11px">当前</span>') +
+        '</td></tr>';
+    });
+    table.innerHTML = h + '</table>';
+  }
+
+  _showCreate() {
+    const card = qs('userDetailCard');
+    card.style.display = 'block';
+    qs('userDetail').innerHTML =
+      '<h3>创建新用户</h3>' +
+      '<div class="row"><label>用户名</label><input id="createUsername" placeholder="2-20字符"></div>' +
+      '<div class="row"><label>密码</label><input id="createPassword" type="password" placeholder="至少8位"></div>' +
+      '<div class="row"><label>app_id</label><input id="createAppId" value="chat" placeholder="应用ID"></div>' +
+      '<button class="primary small" onclick="app._currentPage._create()" id="createBtn">创建</button>' +
+      '<div id="createResult" class="mt"></div>';
+  }
+
+  async _create() {
+    const u = qs('createUsername').value.trim();
+    const p = qs('createPassword').value;
+    const a = qs('createAppId').value.trim();
+    if (!u || u.length < 2) { qs('createResult').innerHTML = '<div class="bg-err" style="padding:6px 10px">用户名至少2字符</div>'; return; }
+    if (!p || p.length < 8) { qs('createResult').innerHTML = '<div class="bg-err" style="padding:6px 10px">密码至少8位</div>'; return; }
+    const btn = qs('createBtn');
+    btn.disabled = true; btn.textContent = '创建中...';
+    try {
+      const d = await app.api.post('/api/v1/register', { username: u, password: p, app_id: a || 'chat' });
+      toast('用户 ' + d.user.globalName + ' 创建成功', 'success');
+      qs('createResult').innerHTML = '<div class="bg-ok" style="padding:6px 10px">创建成功: ' + esc(d.user.globalName) + ' (' + esc(d.user.permission) + ')</div>';
+      this._load();
+    } catch (e) {
+      qs('createResult').innerHTML = '<div class="bg-err" style="padding:6px 10px">' + esc(e.message) + '</div>';
+    } finally { btn.disabled = false; btn.textContent = '创建'; }
+  }
+
+  async _viewDetail(id) {
+    const card = qs('userDetailCard');
+    card.style.display = 'block';
+    const detail = qs('userDetail');
+    detail.innerHTML = '<div class="loading">加载中...</div>';
+    try {
+      const d = await app.api.get('/api/v1/admin/users/' + id);
+      if (!d.ok) throw new Error(d.error);
+      const u = d.user;
+      detail.innerHTML =
+        '<h3>用户详情 - ' + esc(u.globalName) + '</h3>' +
+        '<table><tr><td style="width:90px">ID</td><td><code>' + esc(u.id) + '</code></td></tr>' +
+        '<tr><td>全局名</td><td>' + esc(u.globalName) + '</td></tr>' +
+        '<tr><td>权限</td><td>' + permBadge(u.permission) + '</td></tr>' +
+        '<tr><td>在线</td><td>' + (u.online ? badge('ok', '在线') : badge('err', '离线')) + '</td></tr>' +
+        '<tr><td>注册时间</td><td>' + new Date(u.createdAt).toLocaleString() + '</td></tr>' +
+        '<tr><td>最后在线</td><td>' + (u.lastOnlineAt ? new Date(u.lastOnlineAt).toLocaleString() : '-') + '</td></tr>' +
+        '<tr><td>appNames</td><td><code>' + esc(JSON.stringify(u.appNames)) + '</code></td></tr></table>';
+    } catch (e) { showError(detail, e.message); }
+  }
+
+  async _delete(id, name) {
+    if (!confirm('确认删除用户 "' + name + '" (' + id + ')?\n此操作不可撤销，关联的Token和API密钥也将被清除！')) return;
+    try {
+      await app.api.del('/api/v1/admin/users/' + id);
+      toast('用户已删除', 'success');
+      this._load();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+
+  async _promote(id, name) {
+    if (!confirm('确认将 "' + name + '" 提升为管理员？')) return;
+    try {
+      await app.api.put('/api/v1/admin/users/' + id + '/permission', { permission: 'admin' });
+      toast('已提升为管理员', 'success');
+      this._load();
+    } catch (e) { toast(e.message, 'error'); }
+  }
+}
+
+class TokensPage {
+  constructor(container) { this.container = container; this._tokens = []; }
+  mount() {
+    this.container.innerHTML =
+      '<div class="card">' +
+        '<h3>Token列表</h3>' +
+        '<div class="flex mb"><button class="primary small" onclick="app._currentPage._load()">刷新</button></div>' +
+        '<div id="tokensTable"><div class="loading">加载中...</div></div>' +
+      '</div>';
+    this._load();
+  }
+  destroy() { this._tokens = []; }
+  async _load() {
+    const table = qs('tokensTable');
+    showLoading(table);
+    try {
+      const d = await app.api.get('/api/v1/admin/tokens');
+      this._tokens = d.tokens || [];
+      if (!this._tokens.length) { showEmpty(table); return; }
+      let h = '<table><tr><th>ID</th><th>用户ID</th><th>权限</th><th>短过期</th><th>长过期</th><th>创建</th><th>状态</th><th>操作</th></tr>';
+      this._tokens.forEach(t => {
+        const expired = t.longExpires < Date.now();
+        const active = !expired && !t.revokedAt;
+        h += '<tr><td><code>' + esc(t.id) + '</code></td>' +
+          '<td><code>' + esc(t.userId) + '</code></td>' +
+          '<td>' + badge('scope', esc(t.scopes)) + '</td>' +
+          '<td>' + fmtTime(t.shortExpires) + '</td>' +
+          '<td>' + fmtTime(t.longExpires) + '</td>' +
+          '<td>' + fmtTime(t.createdAt) + '</td>' +
+          '<td>' + (expired ? badge('err', '过期') : (t.revokedAt ? badge('err', '已撤销') : badge('ok', '有效'))) + '</td>' +
+          '<td>' + (active ? '<button class="danger small" onclick="app._currentPage._revoke(\'' + t.id + '\')">撤销</button>' : '<span style="color:var(--text2)">-</span>') + '</td></tr>';
+      });
+      table.innerHTML = h + '</table>';
+    } catch (e) { if (e.name !== 'AbortError') showError(table, e.message); }
+  }
+  async _revoke(id) {
+    if (!confirm('确认撤销 Token ' + id + '?')) return;
+    try { await app.api.del('/api/v1/admin/tokens/' + id); toast('Token已撤销', 'success'); this._load(); }
+    catch (e) { toast(e.message, 'error'); }
+  }
+}
+
+class ApiKeysPage {
+  constructor(container) { this.container = container; }
+  mount() {
+    this.container.innerHTML =
+      '<div class="card">' +
+        '<h3>API密钥管理</h3>' +
+        '<div class="row"><label>名称</label><input id="akName" placeholder="例如: my-app-key"></div>' +
+        '<div class="row"><label>权限</label><input id="akScopes" value="user:read chat:read chat:send"></div>' +
+        '<div class="row"><label>有效期</label><select id="akExpires" style="flex:1;min-width:120px">' +
+          '<option value="7">7天</option><option value="30">30天</option><option value="60" selected>60天</option><option value="90">90天</option><option value="180">180天</option><option value="365">365天</option>' +
+        '</select></div>' +
+        '<button class="primary small" onclick="app._currentPage._create()">创建密钥</button>' +
+        '<pre id="akResult" class="mt">等待操作...</pre>' +
+      '</div>';
+  }
+  destroy() {}
+  async _create() {
+    const name = qs('akName').value.trim();
+    const scopes = qs('akScopes').value.trim().split(/\s+/);
+    const expires_days = parseInt(qs('akExpires').value);
+    if (!name) { qs('akResult').textContent = '请输入名称'; return; }
+    qs('akResult').textContent = '创建中...';
+    try {
+      const d = await app.api.post('/api/v1/api-keys', { name, scopes, expires_days });
+      qs('akResult').textContent = '密钥: ' + d.key + '\n名称: ' + d.name + ' | 有效期: ' + d.expiresDays + '天 | 限流: ' + d.rateLimit + '/时';
+      toast('API密钥创建成功', 'success');
+    } catch (e) { qs('akResult').textContent = 'Error: ' + e.message; }
+  }
+}
+
+class ChatProxyPage {
+  constructor(container) { this.container = container; this._rooms = []; this._subtab = 'rooms'; }
+
+  mount() {
+    this.container.innerHTML =
+      '<div class="card">' +
+        '<div class="flex mb">' +
+          '<h3 style="margin:0">聊天代理控制台</h3>' +
+          '<button class="sec small" onclick="app._currentPage._switchSub(\'rooms\')">房间列表</button>' +
+          '<button class="sec small" onclick="app._currentPage._switchSub(\'direct\')">创建私聊</button>' +
+          '<button class="sec small" onclick="app._currentPage._switchSub(\'group\')">创建群组</button>' +
+          '<button class="sec small" onclick="app._currentPage._switchSub(\'proxy\')">代理发送</button>' +
+        '</div>' +
+        '<div id="proxyContent"><div class="loading">加载中...</div></div>' +
+      '</div>';
+    this._switchSub('rooms');
+  }
+
+  destroy() { this._rooms = []; }
+
+  _switchSub(sub) {
+    this._subtab = sub;
+    $$('.sec.small').forEach(b => b.className = 'sec small');
+    // highlight active
+    const content = qs('proxyContent');
+    switch (sub) {
+      case 'rooms': this._showRooms(content); break;
+      case 'direct': this._showDirectForm(content); break;
+      case 'group': this._showGroupForm(content); break;
+      case 'proxy': this._showProxyForm(content); break;
+    }
+  }
+
+  _showRooms(content) {
+    showLoading(content);
+    content.innerHTML =
+      '<div class="flex mb"><div class="search"><input id="proxyRoomSearch" placeholder="搜索房间ID..." oninput="app._currentPage._filterRooms()"></div>' +
+      '<button class="primary small" onclick="app._currentPage._loadRooms()">刷新</button></div>' +
+      '<div id="proxyRoomList"><div class="loading">加载中...</div></div>' +
+      '<div id="proxyRoomDetail" style="display:none;margin-top:12px"><h3 class="mb">房间详情</h3><div id="proxyRoomDetailContent"></div></div>';
+    this._loadRooms();
+  }
+
+  async _loadRooms() {
+    const list = qs('proxyRoomList');
+    showLoading(list);
+    try {
+      const d = await app.chatApi.get('/api/v1/admin/rooms');
+      this._rooms = d.rooms || [];
+      this._filterRooms();
+    } catch (e) { if (e.name !== 'AbortError') showError(list, e.message); }
+  }
+
+  _filterRooms() {
+    const q = (qs('proxyRoomSearch') ? qs('proxyRoomSearch').value : '').toLowerCase();
+    const list = qs('proxyRoomList');
+    const filtered = q ? this._rooms.filter(r => r.id.toLowerCase().includes(q) || (r.name || '').toLowerCase().includes(q)) : this._rooms;
+    if (!filtered.length) { showEmpty(list); return; }
+    let h = '<table><tr><th>ID</th><th>类型</th><th>名称</th><th>创建者</th><th>创建时间</th><th>操作</th></tr>';
+    filtered.forEach(r => {
+      h += '<tr><td><code>' + esc(r.id) + '</code></td><td>' + badge('scope', esc(r.type || 'group')) + '</td>' +
+        '<td>' + esc(r.name || '-') + '</td><td><code>' + esc(r.creatorId) + '</code></td>' +
+        '<td>' + fmtTime(r.createdAt) + '</td>' +
+        '<td><button class="sec small" onclick="app._currentPage._viewRoom(\'' + r.id + '\')">查看</button>' +
+        '<button class="danger small" onclick="app._currentPage._deleteRoom(\'' + r.id + '\')">删除</button></td></tr>';
+    });
+    list.innerHTML = h + '</table>';
+  }
+
+  async _viewRoom(id) {
+    const detail = qs('proxyRoomDetail');
+    detail.style.display = 'block';
+    const content = qs('proxyRoomDetailContent');
+    content.innerHTML = '<div class="loading">加载中...</div>';
+    try {
+      const [membersData, msgsData] = await Promise.all([
+        app.chatApi.get('/api/v1/admin/rooms/' + id + '/members'),
+        app.chatApi.get('/api/v1/admin/rooms/' + id + '/messages?limit=20'),
+      ]);
+      const members = (membersData.members || []).map(m => m.userId).join(', ');
+      const msgs = msgsData.items || [];
+      let html = '<p><b>房间ID:</b> <code>' + esc(id) + '</code></p>' +
+        '<p><b>成员:</b> ' + esc(members || '(无)') + '</p>' +
+        '<h4 style="margin:10px 0 6px;font-size:12px;color:var(--text2)">最近消息 (' + msgs.length + '条)</h4>';
+      if (!msgs.length) {
+        html += '<div class="empty">暂无消息</div>';
+      } else {
+        html += '<table><tr><th>发送者</th><th>内容</th><th>时间</th></tr>';
+        msgs.forEach(m => {
+          html += '<tr><td><code>' + esc(m.senderId) + '</code></td><td>' + esc(m.content || '').substring(0, 80) + '</td><td>' + fmtTime(m.sentAt) + '</td></tr>';
+        });
+        html += '</table>';
+      }
+      content.innerHTML = html;
+    } catch (e) { showError(content, e.message); }
+  }
+
+  async _deleteRoom(id) {
+    if (!confirm('确认删除房间 ' + id + '?')) return;
+    try { await app.chatApi.del('/api/v1/admin/rooms/' + id); toast('房间已删除', 'success'); this._loadRooms(); }
+    catch (e) { toast(e.message, 'error'); }
+  }
+
+  _showDirectForm(content) {
+    content.innerHTML =
+      '<h3>强制创建私聊</h3>' +
+      '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">在两个指定用户之间创建私聊房间。管理员不参与对话。</p>' +
+      '<div class="row"><label>用户A</label><input id="directUserA" placeholder="用户ID"></div>' +
+      '<div class="row"><label>用户B</label><input id="directUserB" placeholder="用户ID"></div>' +
+      '<button class="primary small" onclick="app._currentPage._createDirect()">创建私聊</button>' +
+      '<pre id="directResult" class="mt">等待操作...</pre>';
+  }
+
+  async _createDirect() {
+    const a = qs('directUserA').value.trim();
+    const b = qs('directUserB').value.trim();
+    if (!a || !b) { qs('directResult').textContent = '请输入两个用户ID'; return; }
+    qs('directResult').textContent = '创建中...';
+    try {
+      const d = await app.chatApi.post('/api/v1/admin/rooms/direct', { userA: a, userB: b });
+      qs('directResult').textContent = JSON.stringify(d.room, null, 2);
+      toast('私聊创建成功: ' + d.room.id, 'success');
+    } catch (e) { qs('directResult').textContent = 'Error: ' + e.message; }
+  }
+
+  _showGroupForm(content) {
+    content.innerHTML =
+      '<h3>强制创建群组</h3>' +
+      '<div class="row"><label>群名称</label><input id="groupName" placeholder="群组名称"></div>' +
+      '<div class="row"><label>创建者</label><input id="groupCreator" placeholder="创建者用户ID"></div>' +
+      '<div class="row"><label>成员ID</label><input id="groupMembers" placeholder="user1,user2,user3" style="font-family:monospace"></div>' +
+      '<button class="primary small" onclick="app._currentPage._createGroup()">创建群组</button>' +
+      '<pre id="groupResult" class="mt">等待操作...</pre>';
+  }
+
+  async _createGroup() {
+    const name = qs('groupName').value.trim();
+    const creator = qs('groupCreator').value.trim();
+    const membersStr = qs('groupMembers').value.trim();
+    if (!name || !creator) { qs('groupResult').textContent = '请输入群名称和创建者ID'; return; }
+    const memberIds = membersStr ? membersStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+    qs('groupResult').textContent = '创建中...';
+    try {
+      const d = await app.chatApi.post('/api/v1/admin/rooms/group', { name, creatorId: creator, memberIds });
+      qs('groupResult').textContent = JSON.stringify(d.room, null, 2);
+      toast('群组创建成功: ' + d.room.id, 'success');
+    } catch (e) { qs('groupResult').textContent = 'Error: ' + e.message; }
+  }
+
+  _showProxyForm(content) {
+    content.innerHTML =
+      '<h3>代理发送消息</h3>' +
+      '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">以指定用户身份发送消息到指定房间。</p>' +
+      '<div class="row"><label>房间ID</label><input id="proxyRoomId" placeholder="房间ID"></div>' +
+      '<div class="row"><label>发送者ID</label><input id="proxySenderId" placeholder="用户ID"></div>' +
+      '<div class="row"><label>消息内容</label><textarea id="proxyContent" rows="3" placeholder="消息内容..."></textarea></div>' +
+      '<button class="primary small" onclick="app._currentPage._proxySend()">发送</button>' +
+      '<pre id="proxySendResult" class="mt">等待操作...</pre>';
+  }
+
+  async _proxySend() {
+    const roomId = qs('proxyRoomId').value.trim();
+    const senderId = qs('proxySenderId').value.trim();
+    const content = qs('proxyContent').value.trim();
+    if (!roomId || !senderId || !content) { qs('proxySendResult').textContent = '请填写完整信息'; return; }
+    qs('proxySendResult').textContent = '发送中...';
+    try {
+      const d = await app.chatApi.post('/api/v1/admin/rooms/' + roomId + '/messages', { senderId, content, type: 'text' });
+      qs('proxySendResult').textContent = JSON.stringify(d.message, null, 2);
+      toast('消息已发送', 'success');
+      qs('proxyContent').value = '';
+    } catch (e) { qs('proxySendResult').textContent = 'Error: ' + e.message; }
+  }
+}
+
+class ProfilePage {
+  constructor(container) { this.container = container; }
+  mount() {
+    this.container.innerHTML = '<div class="card" id="profileCard"><div class="loading">加载中...</div></div>';
+    this._load();
+  }
+  destroy() {}
+  async _load() {
+    const card = qs('profileCard');
+    try {
+      const d = await app.api.get('/api/v1/users/me');
+      if (!d.ok) throw new Error(d.error);
+      const u = d.user;
+      card.innerHTML = '<h3>我的资料</h3>' +
+        '<table><tr><td style="width:90px">ID</td><td><code>' + esc(u.id) + '</code></td></tr>' +
+        '<tr><td>全局名</td><td>' + esc(u.globalName) + '</td></tr>' +
+        '<tr><td>权限</td><td>' + permBadge(u.permission) + '</td></tr>' +
+        '<tr><td>在线</td><td>' + (u.online ? badge('ok', '在线') : badge('err', '离线')) + '</td></tr>' +
+        '<tr><td>注册时间</td><td>' + new Date(u.createdAt).toLocaleString() + '</td></tr>' +
+        '<tr><td>最后在线</td><td>' + (u.lastOnlineAt ? new Date(u.lastOnlineAt).toLocaleString() : '-') + '</td></tr>' +
+        '<tr><td>appNames</td><td><code>' + esc(JSON.stringify(u.appNames)) + '</code></td></tr></table>';
+    } catch (e) { showError(card, e.message); }
+  }
+}
+
+class MyTokensPage {
+  constructor(container) { this.container = container; }
+  mount() {
+    this.container.innerHTML =
+      '<div class="card">' +
+        '<div class="flex mb"><h3 style="margin:0">我的Token</h3><button class="primary small" onclick="app._currentPage._load()">刷新</button></div>' +
+        '<div id="myTokensTable"><div class="loading">加载中...</div></div>' +
+      '</div>';
+    this._load();
+  }
+  destroy() {}
+  async _load() {
+    const table = qs('myTokensTable');
+    showLoading(table);
+    try {
+      const d = await app.api.get('/api/v1/tokens/me');
+      const tokens = d.tokens || [];
+      if (!tokens.length) { showEmpty(table); return; }
+      let h = '<table><tr><th>ID</th><th>权限</th><th>短过期</th><th>长过期</th><th>创建</th><th>最后使用</th><th>状态</th></tr>';
+      tokens.forEach(t => {
+        const expired = t.longExpires < Date.now();
+        h += '<tr><td><code>' + esc(t.id) + '</code></td><td>' + badge('scope', esc(t.scopes)) + '</td>' +
+          '<td>' + fmtTime(t.shortExpires) + '</td><td>' + fmtTime(t.longExpires) + '</td>' +
+          '<td>' + fmtTime(t.createdAt) + '</td><td>' + fmtTime(t.lastUsedAt) + '</td>' +
+          '<td>' + (expired ? badge('err', '过期') : (t.revokedAt ? badge('err', '已撤销') : badge('ok', '有效'))) + '</td></tr>';
+      });
+      table.innerHTML = h + '</table>';
+    } catch (e) { if (e.name !== 'AbortError') showError(table, e.message); }
+  }
+}
+
+class MyApiKeysPage {
+  constructor(container) { this.container = container; }
+  mount() {
+    this.container.innerHTML =
+      '<div class="card">' +
+        '<h3>创建API密钥</h3>' +
+        '<div class="row"><label>名称</label><input id="myAkName" placeholder="my-app-key"></div>' +
+        '<div class="row"><label>权限</label><input id="myAkScopes" value="user:read chat:read chat:send"></div>' +
+        '<div class="row"><label>有效期</label><select id="myAkExpires" style="flex:1;min-width:120px">' +
+          '<option value="7">7天</option><option value="30">30天</option><option value="60" selected>60天</option><option value="90">90天</option><option value="180">180天</option><option value="365">365天</option>' +
+        '</select></div>' +
+        '<button class="primary small" onclick="app._currentPage._create()">创建</button>' +
+        '<pre id="myAkResult" class="mt">等待操作...</pre>' +
+      '</div>';
+  }
+  destroy() {}
+  async _create() {
+    const name = qs('myAkName').value.trim();
+    const scopes = qs('myAkScopes').value.trim().split(/\s+/);
+    const expires_days = parseInt(qs('myAkExpires').value);
+    if (!name) { qs('myAkResult').textContent = '请输入名称'; return; }
+    qs('myAkResult').textContent = '创建中...';
+    try {
+      const d = await app.api.post('/api/v1/api-keys', { name, scopes, expires_days });
+      qs('myAkResult').textContent = '密钥: ' + d.key + '\n名称: ' + d.name + ' | 有效期: ' + d.expiresDays + '天 | 限流: ' + d.rateLimit + '/时';
+      toast('密钥创建成功', 'success');
+    } catch (e) { qs('myAkResult').textContent = 'Error: ' + e.message; }
+  }
+}
+
+// ═══════════════════════════════════════════════
+// Bootstrap
+// ═══════════════════════════════════════════════
+window.app = new App();
+app.init();
+
+})();
+</script>
+</body>
+</html>

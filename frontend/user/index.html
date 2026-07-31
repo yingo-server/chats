@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yingo 用户中心</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#f5f5f5;--card:#fff;--border:#e0e0e0;--text:#1a1a1a;--text2:#666;--accent:#0078d4;--accent-hover:#106ebe;--danger:#a4262c;--radius:8px;--shadow:0 2px 8px rgba(0,0,0,.06)}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text)}
+.header{background:var(--card);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;gap:12px}
+.header h1{font-size:16px;font-weight:600}
+.header .user-info{margin-left:auto;font-size:12px;color:var(--text2);display:flex;align-items:center;gap:8px}
+.container{max-width:960px;margin:0 auto;padding:16px 24px}
+.tabs{display:flex;gap:3px;background:var(--card);border-radius:var(--radius);padding:3px;margin-bottom:16px;border:1px solid var(--border);flex-wrap:wrap}
+.tab{padding:7px 14px;border-radius:5px;cursor:pointer;font-size:13px;color:var(--text2);transition:.15s}
+.tab:hover{background:#f0f0f0}.tab.active{background:var(--accent);color:#fff}
+.card{background:var(--card);border-radius:var(--radius);border:1px solid var(--border);padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
+.card h3{font-size:13px;font-weight:600;margin-bottom:10px;color:var(--text2)}
+.row{display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap}
+.row label{font-size:12px;color:var(--text2);min-width:60px}
+.row input,.row select{flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:5px;font-size:12px;outline:none}
+.row input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,120,212,.15)}
+button{padding:7px 14px;border:none;border-radius:5px;cursor:pointer;font-size:12px;font-weight:500;transition:.15s}
+button:disabled{opacity:.5;cursor:not-allowed}
+button.primary{background:var(--accent);color:#fff}button.primary:hover{background:var(--accent-hover)}
+button.sec{background:#f0f0f0;color:var(--text)}button.sec:hover{background:#e0e0e0}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:7px 10px;border-bottom:2px solid var(--border);color:var(--text2);font-weight:600}
+td{padding:7px 10px;border-bottom:1px solid #f0f0f0;word-break:break-all}
+tr:hover td{background:#fafafa}
+code{font-family:monospace;font-size:11px;background:#f5f5f5;padding:1px 4px;border-radius:3px}
+pre{background:#f5f5f5;border-radius:5px;padding:10px;font-size:11px;overflow-x:auto;max-height:250px}
+.empty{text-align:center;padding:30px;color:var(--text2);font-size:13px}
+.loading{text-align:center;padding:15px;color:var(--text2);font-size:12px}
+.mb{margin-bottom:8px}.mt{margin-top:8px}
+.flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.bg-ok{background:#dff6dd;color:#0e7a0d;padding:1px 7px;border-radius:4px;font-size:11px}
+.bg-err{background:#fde7e9;color:#a4262c;padding:1px 7px;border-radius:4px;font-size:11px}
+.bg-admin{background:#fff3cd;color:#856404;padding:1px 7px;border-radius:4px;font-size:11px}
+.bg-user{background:#e8f4fd;color:#0078d4;padding:1px 7px;border-radius:4px;font-size:11px}
+.bg-scope{background:#e8f4fd;color:#0078d4;padding:1px 5px;border-radius:3px;font-size:10px;font-family:monospace}
+@media(max-width:768px){.row{flex-direction:column;align-items:stretch}.container{padding:12px}.header{padding:10px 12px}}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>Yingo 用户中心</h1>
+  <div class="user-info" id="userInfo" style="display:none">
+    <span id="userNameDisplay"></span>
+    <span id="userPermDisplay"></span>
+    <button class="sec" onclick="app.logout()" style="padding:3px 10px">退出</button>
+  </div>
+</div>
+
+<div class="container">
+  <div id="loginPage" style="max-width:360px;margin:50px auto">
+    <div class="card" style="padding:28px">
+      <b style="font-size:16px;display:block;text-align:center;margin-bottom:16px">登录 / 注册</b>
+      <div class="row"><input id="loginUsername" placeholder="用户名"></div>
+      <div class="row"><input id="loginPassword" type="password" placeholder="密码"></div>
+      <div class="flex mb">
+        <button class="primary" onclick="app.login()" id="loginBtn" style="flex:1">登录</button>
+        <button class="sec" onclick="app.register()" id="registerBtn" style="flex:1">注册</button>
+      </div>
+      <p id="loginError" style="color:#a4262c;font-size:12px;text-align:center;display:none" class="mt"></p>
+    </div>
+  </div>
+
+  <div id="dashboard" style="display:none">
+    <div class="tabs" id="tabBar"></div>
+    <div id="pageContainer"></div>
+  </div>
+</div>
+
+<script src="../config.js"></script>
+<script>
+(function(){
+'use strict';
+
+const API = window.API_CONFIG.userApi;
+
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+const $ = s => document.querySelector(s);
+function qs(id) { return document.getElementById(id); }
+
+function fmtTime(ms) {
+  if (!ms) return '-';
+  const diff = Date.now() - ms, abs = Math.abs(diff), s = Math.floor(abs / 1000);
+  if (s < 60) return Math.floor(s) + (diff > 0 ? '秒前' : '秒后');
+  if (s < 3600) return Math.floor(s / 60) + (diff > 0 ? '分钟前' : '分钟后');
+  if (s < 86400) return Math.floor(s / 3600) + (diff > 0 ? '小时前' : '小时后');
+  if (s < 2592000) return Math.floor(s / 86400) + (diff > 0 ? '天前' : '天后');
+  return new Date(ms).toLocaleDateString('zh-CN');
+}
+function badge(type, text) { return '<span class="bg-' + type + '">' + esc(text) + '</span>'; }
+
+class App {
+  constructor() {
+    this.state = { token: '', perm: '', userId: '', userName: '' };
+    this._savedKey = 'fu_state';
+    this._currentPage = null;
+  }
+
+  init() {
+    const saved = this._restore();
+    if (saved) { Object.assign(this.state, saved); this.showDashboard(); }
+  }
+
+  _restore() {
+    try {
+      const raw = localStorage.getItem(this._savedKey);
+      if (!raw) return null;
+      const s = JSON.parse(raw);
+      return s.token ? s : null;
+    } catch { return null; }
+  }
+
+  _save() {
+    localStorage.setItem(this._savedKey, JSON.stringify(this.state));
+  }
+
+  _clear() { localStorage.removeItem(this._savedKey); }
+
+  async _fetch(method, path, body) {
+    const h = { 'Content-Type': 'application/json' };
+    if (this.state.token) h['Authorization'] = 'Bearer ' + this.state.token;
+    const opts = { method, headers: h };
+    if (body && method !== 'GET') opts.body = JSON.stringify(body);
+    const r = await fetch(API + path, opts);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.statusText);
+    return d;
+  }
+
+  async login() {
+    const u = qs('loginUsername').value.trim(), p = qs('loginPassword').value;
+    if (!u || !p) return;
+    const btn = qs('loginBtn'); btn.disabled = true; btn.textContent = '登录中...';
+    qs('loginError').style.display = 'none';
+    try {
+      const d = await this._fetch('POST', '/api/v1/login', { username: u, password: p });
+      this.state = { token: d.long_token, perm: d.permission, userId: d.user_id, userName: u };
+      this._save();
+      this.showDashboard();
+    } catch (e) {
+      qs('loginError').textContent = '登录失败: ' + e.message;
+      qs('loginError').style.display = 'block';
+    } finally { btn.disabled = false; btn.textContent = '登录'; }
+  }
+
+  async register() {
+    const u = qs('loginUsername').value.trim(), p = qs('loginPassword').value;
+    if (!u || !p) return;
+    const btn = qs('registerBtn'); btn.disabled = true; btn.textContent = '注册中...';
+    qs('loginError').style.display = 'none';
+    try {
+      const d = await this._fetch('POST', '/api/v1/register', { username: u, password: p, app_id: 'chat' });
+      toast('注册成功，请登录', 'success');
+    } catch (e) {
+      qs('loginError').textContent = '注册失败: ' + e.message;
+      qs('loginError').style.display = 'block';
+    } finally { btn.disabled = false; btn.textContent = '注册'; }
+  }
+
+  logout() {
+    this._clear();
+    this.state = { token: '', perm: '', userId: '', userName: '' };
+    qs('loginPage').style.display = 'block';
+    qs('dashboard').style.display = 'none';
+    qs('userInfo').style.display = 'none';
+    if (this._currentPage && this._currentPage.destroy) this._currentPage.destroy();
+    this._currentPage = null;
+  }
+
+  showDashboard() {
+    qs('loginPage').style.display = 'none';
+    qs('dashboard').style.display = 'block';
+    qs('userNameDisplay').textContent = this.state.userName;
+    qs('userPermDisplay').className = this.state.perm === 'admin' ? 'bg-admin' : 'bg-user';
+    qs('userPermDisplay').textContent = this.state.perm === 'admin' ? '管理员' : '用户';
+    qs('userInfo').style.display = 'flex';
+    this._renderTabs();
+  }
+
+  _renderTabs() {
+    const tabs = [
+      { id: 'profile', label: '我的资料' },
+      { id: 'tokens', label: '我的Token' },
+      { id: 'apikeys', label: 'API密钥' },
+    ];
+    qs('tabBar').innerHTML = tabs.map((t, i) =>
+      '<div class="tab' + (i === 0 ? ' active' : '') + '" data-id="' + t.id + '">' + esc(t.label) + '</div>'
+    ).join('');
+    $$('.tab').forEach(el => {
+      el.onclick = () => {
+        $$('.tab').forEach(x => x.classList.remove('active'));
+        el.classList.add('active');
+        this._switchPage(el.dataset.id);
+      };
+    });
+    this._switchPage(tabs[0].id);
+  }
+
+  _switchPage(id) {
+    if (this._currentPage && this._currentPage.destroy) this._currentPage.destroy();
+    const container = qs('pageContainer');
+    container.innerHTML = '';
+    const pages = {
+      'profile': () => new ProfilePage(container),
+      'tokens': () => new TokensPage(container),
+      'apikeys': () => new ApiKeysPage(container),
+    };
+    const p = pages[id];
+    if (p) { this._currentPage = p(); if (this._currentPage.mount) this._currentPage.mount(); }
+  }
+}
+
+function toast(msg, type) {
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;top:16px;right:16px;z-index:999;padding:10px 16px;border-radius:6px;font-size:12px;box-shadow:0 4px 12px rgba(0,0,0,.15);transition:opacity .3s;max-width:400px';
+  el.style.background = type === 'success' ? '#dff6dd' : '#fde7e9';
+  el.style.color = type === 'success' ? '#0e7a0d' : '#a4262c';
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 300); }, 3000);
+}
+
+const $$ = s => document.querySelectorAll(s);
+function showLoading(container) {
+  if (typeof container === 'string') container = qs(container);
+  container.innerHTML = '<div class="loading">加载中...</div>';
+}
+
+class ProfilePage {
+  constructor(container) { this.container = container; }
+  mount() {
+    this.container.innerHTML = '<div class="card" id="myProfileCard"><div class="loading">加载中...</div></div>';
+    this._load();
+  }
+  destroy() {}
+  async _load() {
+    const card = qs('myProfileCard');
+    try {
+      const d = await app._fetch('GET', '/api/v1/users/me');
+      const u = d.user;
+      card.innerHTML = '<h3>我的资料</h3><table>' +
+        '<tr><td style="width:80px">ID</td><td><code>' + esc(u.id) + '</code></td></tr>' +
+        '<tr><td>用户名</td><td>' + esc(u.globalName) + '</td></tr>' +
+        '<tr><td>权限</td><td>' + badge(u.permission === 'admin' ? 'admin' : 'user', u.permission === 'admin' ? '管理员' : '用户') + '</td></tr>' +
+        '<tr><td>在线</td><td>' + (u.online ? badge('ok', '在线') : badge('err', '离线')) + '</td></tr>' +
+        '<tr><td>注册时间</td><td>' + new Date(u.createdAt).toLocaleString() + '</td></tr>' +
+        '<tr><td>最后在线</td><td>' + (u.lastOnlineAt ? new Date(u.lastOnlineAt).toLocaleString() : '-') + '</td></tr>' +
+        '<tr><td>appNames</td><td><code>' + esc(JSON.stringify(u.appNames)) + '</code></td></tr></table>';
+    } catch (e) { card.innerHTML = '<h3>我的资料</h3><div class="empty" style="color:#a4262c">' + esc(e.message) + '</div>'; }
+  }
+}
+
+class TokensPage {
+  constructor(container) { this.container = container; }
+  mount() {
+    this.container.innerHTML =
+      '<div class="card"><div class="flex mb"><h3 style="margin:0">我的Token</h3><button class="sec small" onclick="app._currentPage._load()">刷新</button></div>' +
+      '<div id="myTokensTable"><div class="loading">加载中...</div></div></div>';
+    this._load();
+  }
+  destroy() {}
+  async _load() {
+    const table = qs('myTokensTable');
+    showLoading(table);
+    try {
+      const d = await app._fetch('GET', '/api/v1/tokens/me');
+      const tokens = d.tokens || [];
+      if (!tokens.length) { table.innerHTML = '<div class="empty">暂无Token</div>'; return; }
+      let h = '<table><tr><th>ID</th><th>权限</th><th>短过期</th><th>长过期</th><th>创建</th><th>最后使用</th><th>状态</th></tr>';
+      tokens.forEach(t => {
+        const expired = t.longExpires < Date.now();
+        h += '<tr><td><code>' + esc(t.id) + '</code></td><td>' + badge('scope', esc(t.scopes)) + '</td>' +
+          '<td>' + fmtTime(t.shortExpires) + '</td><td>' + fmtTime(t.longExpires) + '</td>' +
+          '<td>' + fmtTime(t.createdAt) + '</td><td>' + fmtTime(t.lastUsedAt) + '</td>' +
+          '<td>' + (expired ? badge('err', '过期') : (t.revokedAt ? badge('err', '已撤销') : badge('ok', '有效'))) + '</td></tr>';
+      });
+      table.innerHTML = h + '</table>';
+    } catch (e) { table.innerHTML = '<div class="empty" style="color:#a4262c">' + esc(e.message) + '</div>'; }
+  }
+}
+
+class ApiKeysPage {
+  constructor(container) { this.container = container; }
+  mount() {
+    this.container.innerHTML =
+      '<div class="card">' +
+        '<h3>创建API密钥</h3>' +
+        '<div class="row"><label>名称</label><input id="akName" placeholder="my-app-key"></div>' +
+        '<div class="row"><label>权限</label><input id="akScopes" value="user:read chat:read chat:send"></div>' +
+        '<div class="row"><label>有效期</label><select id="akExpires" style="flex:1">' +
+          '<option value="7">7天</option><option value="30">30天</option><option value="60" selected>60天</option><option value="90">90天</option><option value="180">180天</option><option value="365">365天</option>' +
+        '</select></div>' +
+        '<button class="primary" onclick="app._currentPage._create()">创建</button>' +
+        '<pre id="akResult" class="mt">等待操作...</pre>' +
+      '</div>';
+  }
+  destroy() {}
+  async _create() {
+    const name = qs('akName').value.trim();
+    const scopes = qs('akScopes').value.trim().split(/\s+/);
+    const expires_days = parseInt(qs('akExpires').value);
+    if (!name) { qs('akResult').textContent = '请输入名称'; return; }
+    qs('akResult').textContent = '创建中...';
+    try {
+      const d = await app._fetch('POST', '/api/v1/api-keys', { name, scopes, expires_days });
+      qs('akResult').textContent = '密钥: ' + d.key + '\n名称: ' + d.name + ' | 有效期: ' + d.expiresDays + '天 | 限流: ' + d.rateLimit + '/时';
+      toast('密钥创建成功', 'success');
+    } catch (e) { qs('akResult').textContent = 'Error: ' + e.message; }
+  }
+}
+
+window.app = new App();
+app.init();
+})();
+</script>
+</body>
+</html>

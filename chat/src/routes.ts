@@ -1,0 +1,327 @@
+import type { FastifyInstance } from "fastify";
+import { eq, sql, and } from "drizzle-orm";
+import { sendMessage, getMessages, getMessagesAdmin, createRoom, deleteRoom, getUserRooms, getRoomDetail, getRoomMembers, isRoomMember, createDirectRoom, db } from "./core.js";
+import { verifyToken, fetchUser, secureFetch } from "./api.js";
+import { createClient } from "./redis.js";
+import { rooms, roomMembers, coldMessages } from "./schema.js";
+import { randomBytes } from "node:crypto";
+
+
+const redis = createClient();
+const USER_SVC = (process.env.USER_SERVICE_URL || "http://localhost:9000").trim().replace(/\/+$/, "");
+
+let broadcast: ((roomId: string, msg: any) => void) | undefined;
+export function setBroadcast(fn: (roomId: string, msg: any) => void) { broadcast = fn; }
+
+function requireString(body: any, field: string, min: number, max: number): string {
+  if (!body || typeof body[field] !== "string") throw new Error(`${field} must be a string`);
+  if (body[field].length < min || body[field].length > max) throw new Error(`${field} must be ${min}-${max} chars`);
+  return body[field];
+}
+
+function parseLimit(raw: any): number | null {
+  if (raw === undefined || raw === null) return 30;
+  const n = parseInt(String(raw), 10);
+  if (Number.isNaN(n) || n < 1 || n > 100) return null;
+  return n;
+}
+
+async function requireAdmin(req: any) {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith("Bearer ")) return null;
+  const payload = await verifyToken(auth.slice(7));
+  if (!payload || payload.permission !== "admin") return null;
+  return payload;
+}
+
+export async function registerRoutes(app: FastifyInstance): Promise<void> {
+  // ═══ 登录代理（转发到 User Service）═══
+  app.post("/api/v1/login", async (req, reply) => {
+    try {
+      const body = req.body as any;
+      if (!body || typeof body.username !== "string" || typeof body.password !== "string")
+        return reply.status(400).send({ ok: false, error: "username and password required" });
+      const fwdHeaders: Record<string, string> = { "Content-Type": "application/json" };
+      const res = await secureFetch(`${USER_SVC}/api/v1/login`, {
+        method: "POST",
+        headers: fwdHeaders,
+        body: JSON.stringify({ username: body.username, password: body.password }),
+      });
+      const data = await res.json();
+      return reply.status(res.status).send(data);
+    } catch (e: any) { return reply.status(502).send({ ok: false, error: "user service unreachable" }); }
+  });
+
+  // ═══ REST 房间 ═══
+  app.post("/api/v1/rooms/direct", async (req, reply) => {
+    const t = req.headers.authorization?.slice(7);
+    const u = await verifyToken(t || "");
+    if (!u) return reply.status(401).send({ ok: false, error: "unauthorized" });
+    const { targetUserId } = req.body as any;
+    if (!targetUserId || typeof targetUserId !== "string") return reply.status(400).send({ ok: false, error: "targetUserId required" });
+    if (targetUserId === u.userId) return reply.status(400).send({ ok: false, error: "cannot chat with self" });
+    try {
+      const room = await createDirectRoom(u.userId, targetUserId);
+      return reply.status(201).send({ ok: true, room });
+    } catch (e: any) {
+      return reply.status(500).send({ ok: false, error: e.message });
+    }
+  });
+
+  app.post("/api/v1/rooms/group", async (req, reply) => {
+    const t = req.headers.authorization?.slice(7);
+    const u = await verifyToken(t || "");
+    if (!u) return reply.status(401).send({ ok: false, error: "unauthorized" });
+    const { name, memberIds } = req.body as any;
+    if (name && typeof name !== "string") return reply.status(400).send({ ok: false, error: "name must be string" });
+    if (memberIds && !Array.isArray(memberIds)) return reply.status(400).send({ ok: false, error: "memberIds must be array" });
+    if (memberIds && memberIds.length > 100) return reply.status(400).send({ ok: false, error: "memberIds max 100" });
+    const room = await createRoom("group", u.userId, name, memberIds);
+    return reply.status(201).send({ ok: true, room });
+  });
+
+  app.get("/api/v1/rooms/:id/messages", async (req, reply) => {
+    const t = req.headers.authorization?.slice(7);
+    const u = await verifyToken(t || "");
+    if (!u) return reply.status(401).send({ ok: false, error: "unauthorized" });
+    const { id } = req.params as any;
+    const { cursor, limit } = req.query as any;
+    const safeLimit = parseLimit(limit);
+    if (safeLimit === null) return reply.status(400).send({ ok: false, error: "limit must be 1-100" });
+    try {
+      const result = await getMessages(id, u.userId, cursor, safeLimit);
+      return reply.send({ ok: true, ...result });
+    } catch (e: any) {
+      const code = e.message === "not a room member" ? 403 : 500;
+      return reply.status(code).send({ ok: false, error: e.message });
+    }
+  });
+
+  // ═══ 获取当前用户的房间列表 ═══
+  app.get("/api/v1/rooms", async (req, reply) => {
+    const t = req.headers.authorization?.slice(7);
+    const u = await verifyToken(t || "");
+    if (!u) return reply.status(401).send({ ok: false, error: "unauthorized" });
+    try {
+      const rooms = await getUserRooms(u.userId);
+      return reply.send({ ok: true, rooms });
+    } catch (e: any) {
+      return reply.status(500).send({ ok: false, error: e.message });
+    }
+  });
+
+  // ═══ 获取单个房间详情 ═══
+  app.get("/api/v1/rooms/:id", async (req, reply) => {
+    const t = req.headers.authorization?.slice(7);
+    const u = await verifyToken(t || "");
+    if (!u) return reply.status(401).send({ ok: false, error: "unauthorized" });
+    const { id } = req.params as any;
+    try {
+      const room = await getRoomDetail(id);
+      if (!room) return reply.status(404).send({ ok: false, error: "room not found" });
+      const member = await isRoomMember(id, u.userId);
+      if (!member) return reply.status(403).send({ ok: false, error: "not a room member" });
+      return reply.send({ ok: true, room });
+    } catch (e: any) {
+      return reply.status(500).send({ ok: false, error: e.message });
+    }
+  });
+
+  // ═══ 获取房间成员 ═══
+  app.get("/api/v1/rooms/:id/members", async (req, reply) => {
+    const t = req.headers.authorization?.slice(7);
+    const u = await verifyToken(t || "");
+    if (!u) return reply.status(401).send({ ok: false, error: "unauthorized" });
+    const { id } = req.params as any;
+    try {
+      const room = await getRoomDetail(id);
+      if (!room) return reply.status(404).send({ ok: false, error: "room not found" });
+      const member = await isRoomMember(id, u.userId);
+      if (!member) return reply.status(403).send({ ok: false, error: "not a room member" });
+      const members = await getRoomMembers(id);
+      return reply.send({ ok: true, members, total: members.length });
+    } catch (e: any) {
+      return reply.status(500).send({ ok: false, error: e.message });
+    }
+  });
+
+  // ═══ 健康检查 (liveness) ═══
+  app.get("/api/v1/health", async () => ({ ok: true, service: "chat-v1", uptime: process.uptime() }));
+
+  // ═══ 就绪检查 (readiness) ═══
+  app.get("/api/v1/ready", async () => {
+    let dbOk = false; let redisOk = false;
+    try { await db.execute(sql`SELECT 1`); dbOk = true; } catch {}
+    try { await redis.ping(); redisOk = true; } catch {}
+    return { ok: dbOk && redisOk, service: "chat-v1", db: dbOk ? "ok" : "error", redis: redisOk ? "ok" : "error" };
+  });
+
+  // ═══ Metrics ═══
+  app.get("/api/v1/metrics", async () => ({
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    pid: process.pid,
+  }));
+
+  // ═══ Admin: 房间列表 ═══
+  app.get("/api/v1/admin/rooms", async (req, reply) => {
+    const admin = await requireAdmin(req);
+    if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
+    try {
+      const rows = await db.select().from(rooms).limit(200);
+      return reply.send({ ok: true, rooms: rows, total: rows.length });
+    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+  });
+
+  // ═══ Admin: 房间成员 ═══
+  app.get("/api/v1/admin/rooms/:id/members", async (req, reply) => {
+    const admin = await requireAdmin(req);
+    if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
+    const { id } = req.params as any;
+    try {
+      const rows = await db.select().from(roomMembers).where(eq(roomMembers.roomId, id));
+      return reply.send({ ok: true, members: rows, total: rows.length });
+    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+  });
+
+  // ═══ Admin: 消息统计 ═══
+  app.get("/api/v1/admin/stats", async (req, reply) => {
+    const admin = await requireAdmin(req);
+    if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
+    try {
+      const [roomCount] = await db.select({ count: sql<number>`count(*)::bigint` }).from(rooms);
+      const [memberCount] = await db.select({ count: sql<number>`count(*)::bigint` }).from(roomMembers);
+      const [msgCount] = await db.select({ count: sql<number>`count(*)::bigint` }).from(coldMessages);
+      const onlineKeys: string[] = [];
+      let scanCursor = "0";
+      do {
+        const [next, keys] = await redis.scan(scanCursor, "MATCH", "online:*", "COUNT", 100);
+        scanCursor = next;
+        onlineKeys.push(...keys);
+      } while (scanCursor !== "0");
+      return reply.send({
+        ok: true,
+        stats: {
+          rooms: roomCount?.count ?? 0,
+          members: memberCount?.count ?? 0,
+          coldMessages: msgCount?.count ?? 0,
+          onlineUsers: onlineKeys.length,
+        },
+      });
+    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+  });
+
+  // ═══ Admin: 创建私聊 (指定双方用户, 管理员不参与) ═══
+  app.post("/api/v1/admin/rooms/direct", async (req, reply) => {
+    const admin = await requireAdmin(req);
+    if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
+    const { userA, userB } = req.body as any;
+    if (!userA || !userB || typeof userA !== "string" || typeof userB !== "string")
+      return reply.status(400).send({ ok: false, error: "userA and userB required" });
+    if (userA === userB) return reply.status(400).send({ ok: false, error: "cannot chat with self" });
+    try {
+      // 复用幂等创建逻辑：同一对用户只返回一个房间
+      const room = await createDirectRoom(userA, userB);
+      return reply.status(201).send({ ok: true, room });
+    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+  });
+
+  // ═══ Admin: 查看房间消息 (绕过成员检查) ═══
+  app.get("/api/v1/admin/rooms/:id/messages", async (req, reply) => {
+    const admin = await requireAdmin(req);
+    if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
+    const { id } = req.params as any;
+    const { cursor, limit } = req.query as any;
+    const safeLimit = parseLimit(limit);
+    if (safeLimit === null) return reply.status(400).send({ ok: false, error: "limit must be 1-100" });
+    try {
+      const result = await getMessagesAdmin(id, cursor as string, safeLimit);
+      return reply.send({ ok: true, ...result });
+    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+  });
+
+  // ═══ Admin: 代理发送消息 (绕过成员检查) ═══
+  app.post("/api/v1/admin/rooms/:id/messages", async (req, reply) => {
+    const admin = await requireAdmin(req);
+    if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
+    const { id } = req.params as any;
+    const { senderId, content, type } = req.body as any;
+    if (!senderId || typeof senderId !== "string") return reply.status(400).send({ ok: false, error: "senderId required" });
+    if (!content || typeof content !== "string") return reply.status(400).send({ ok: false, error: "content required" });
+    try {
+      const msg = await sendMessage(id, senderId, content, type || "text", req.ip, true);
+      broadcast?.(id, msg);
+      return reply.status(201).send({ ok: true, message: msg });
+    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+  });
+
+  // ═══ Admin: 创建群组 (指定创建者, 管理员不参与) ═══
+  app.post("/api/v1/admin/rooms/group", async (req, reply) => {
+    const admin = await requireAdmin(req);
+    if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
+    const { name, creatorId, memberIds } = req.body as any;
+    if (!creatorId || typeof creatorId !== "string") return reply.status(400).send({ ok: false, error: "creatorId required" });
+    if (!name || typeof name !== "string") return reply.status(400).send({ ok: false, error: "name required" });
+    try {
+      const room = await createRoom("group", creatorId, name, memberIds);
+      return reply.status(201).send({ ok: true, room });
+    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+  });
+
+  // ═══ Admin: 添加房间成员 ═══
+  app.post("/api/v1/admin/rooms/:id/members", async (req, reply) => {
+    const admin = await requireAdmin(req);
+    if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
+    const { id } = req.params as any;
+    const { userId } = req.body as any;
+    if (!userId || typeof userId !== "string") return reply.status(400).send({ ok: false, error: "userId required" });
+    try {
+      const mid = Date.now().toString().slice(-10)+randomBytes(3).readUIntBE(0,3).toString().padStart(6,"0").slice(-6);
+      await db.insert(roomMembers).values({ id: mid, roomId: id, userId, joinedAt: Date.now() }).onConflictDoNothing();
+      return reply.status(201).send({ ok: true, roomId: id, userId });
+    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+  });
+
+  // ═══ Admin: 移除房间成员 ═══
+  app.delete("/api/v1/admin/rooms/:roomId/members/:userId", async (req, reply) => {
+    const admin = await requireAdmin(req);
+    if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
+    const { roomId, userId } = req.params as any;
+    try {
+      await db.delete(roomMembers).where(and(eq(roomMembers.roomId, roomId), eq(roomMembers.userId, userId)));
+      return reply.send({ ok: true, roomId, userId });
+    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+  });
+
+  // ═══ 用户发送消息 ═══
+  app.post("/api/v1/rooms/:id/messages", async (req, reply) => {
+    const t = req.headers.authorization?.slice(7);
+    const u = await verifyToken(t || "");
+    if (!u) return reply.status(401).send({ ok: false, error: "unauthorized" });
+    const { id } = req.params as any;
+    const { content, type } = req.body as any;
+    if (!content || typeof content !== "string") return reply.status(400).send({ ok: false, error: "content required" });
+    try {
+      const msg = await sendMessage(id, u.userId, content, type || "text", req.ip);
+      broadcast?.(id, msg);
+      return reply.status(201).send({ ok: true, message: msg });
+    } catch (e: any) {
+      const code = e.message === "not a room member" ? 403 : e.message.includes("must be") ? 400 : 500;
+      return reply.status(code).send({ ok: false, error: e.message });
+    }
+  });
+
+  // ═══ Admin: 删除房间 ═══
+  app.delete("/api/v1/admin/rooms/:id", async (req, reply) => {
+    const admin = await requireAdmin(req);
+    if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
+    const { id } = req.params as any;
+    if (typeof id !== "string" || id.length > 16) return reply.status(400).send({ ok: false, error: "invalid id" });
+    try {
+      const [r] = await db.select({ id: rooms.id }).from(rooms).where(eq(rooms.id, id)).limit(1);
+      if (!r) return reply.status(404).send({ ok: false, error: "房间不存在" });
+      await deleteRoom(id);
+      return reply.send({ ok: true, deleted: id });
+    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+  });
+}

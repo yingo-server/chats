@@ -1,0 +1,43 @@
+services:
+  user-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: yingo
+      POSTGRES_PASSWORD: yingo123
+      POSTGRES_DB: cold_user
+    volumes:
+      - user_pg_data:/var/lib/postgresql/data
+    networks:
+      - yingo-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yingo -d cold_user"]
+      interval: 10s
+      retries: 5
+
+  user-service:
+    image: yingo344977/yingo-user:latest
+    build: .
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      DATABASE_URL: postgres://yingo:yingo123@user-db:5432/cold_user
+      PEPPER_SECRET: dev-pepper-change-in-production
+      TOKEN_SECRET: dev-token-secret-change-in-production
+    depends_on:
+      user-db:
+        condition: service_healthy
+    networks:
+      - yingo-net
+
+networks:
+  yingo-net:
+    name: yingo-net
+    driver: bridge
+
+volumes:
+  user_pg_data:
+    name: yingo_user_pg_data

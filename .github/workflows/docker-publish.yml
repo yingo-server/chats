@@ -1,0 +1,46 @@
+name: Build & Push Docker Images
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DOCKER_USER: yingo344977
+
+jobs:
+  build-user:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_PAT }}
+      - name: Build & push user-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./user
+          push: true
+          tags: |
+            ${{ env.DOCKER_USER }}/yingo-user:latest
+            ${{ env.DOCKER_USER }}/yingo-user:${{ github.sha }}
+
+  build-chat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_PAT }}
+      - name: Build & push chat-service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./chat
+          push: true
+          tags: |
+            ${{ env.DOCKER_USER }}/yingo-chat:latest
+            ${{ env.DOCKER_USER }}/yingo-chat:${{ github.sha }}

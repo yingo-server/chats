@@ -1,0 +1,62 @@
+services:
+  chat-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: yingo
+      POSTGRES_PASSWORD: yingo123
+      POSTGRES_DB: cold_chat
+    volumes:
+      - chat_pg_data:/var/lib/postgresql/data
+    networks:
+      - yingo-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yingo -d cold_chat"]
+      interval: 10s
+      retries: 5
+
+  chat-cache:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - chat_redis_data:/data
+    networks:
+      - yingo-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 5
+
+  chat-service:
+    image: yingo344977/yingo-chat:latest
+    build: .
+    restart: unless-stopped
+    ports:
+      - "9001:9001"
+    environment:
+      DATABASE_URL: postgres://yingo:yingo123@chat-db:5432/cold_chat
+      REDIS_URL: redis://chat-cache:6379
+      USER_SERVICE_URL: http://user-service:9000
+    depends_on:
+      chat-db:
+        condition: service_healthy
+      chat-cache:
+        condition: service_healthy
+    networks:
+      - yingo-net
+
+networks:
+  yingo-net:
+    name: yingo-net
+    external: true
+
+volumes:
+  chat_pg_data:
+    name: yingo_chat_pg_data
+  chat_redis_data:
+    name: yingo_chat_redis_data
