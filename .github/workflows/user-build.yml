@@ -1,8 +1,9 @@
-name: Build and Push Docker Image
+name: Build User Service
 
 on:
   push:
     branches: [main]
+    paths: ['user/**', '.github/workflows/user-build.yml']
   workflow_dispatch:
 
 env:
@@ -41,7 +42,8 @@ jobs:
       - name: Build and Push
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ./user
+          file: ./user/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
