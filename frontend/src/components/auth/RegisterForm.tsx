@@ -1,6 +1,7 @@
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router"
 import { useAuthStore } from "@/stores/useAuthStore"
+import { searchUsers } from "@/api/chat"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,6 +18,32 @@ export function RegisterForm() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [nameTaken, setNameTaken] = useState(false)
+  const [checking, setChecking] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (username.length < 2) {
+      setNameTaken(false)
+      setChecking(false)
+      return
+    }
+    setChecking(true)
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await searchUsers(username)
+        setNameTaken(res.ok && res.users.some((u) => u.globalName.toLowerCase() === username.toLowerCase()))
+      } catch {
+        setNameTaken(false)
+      } finally {
+        setChecking(false)
+      }
+    }, 400)
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+    }
+  }, [username])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -31,6 +58,10 @@ export function RegisterForm() {
     }
     if (username.length < 2) {
       setError("Username must be at least 2 characters")
+      return
+    }
+    if (nameTaken) {
+      setError("Username is already taken")
       return
     }
     setLoading(true)
@@ -58,7 +89,12 @@ export function RegisterForm() {
           {error && <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
           <div className="space-y-2">
             <Label htmlFor="username">Username</Label>
-            <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} required minLength={2} maxLength={20} autoFocus />
+            <div className="relative">
+              <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} required minLength={2} maxLength={20} autoFocus />
+              {checking && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">...</span>}
+              {!checking && nameTaken && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-destructive">Taken</span>}
+            </div>
+            {!checking && nameTaken && <p className="text-xs text-destructive">This username is already taken</p>}
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password</Label>
