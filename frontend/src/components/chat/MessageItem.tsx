@@ -10,11 +10,12 @@ interface MessageItemProps {
 export function MessageItem({ message }: MessageItemProps) {
   const user = useAuthStore((s) => s.user)
   const isOwn = message.senderId === user?.id
+  const initials = message.senderName?.slice(0, 2).toUpperCase() || "?"
 
   return (
     <div className={cn("flex gap-3 px-4 py-1.5 hover:bg-muted/30", isOwn && "flex-row-reverse")}>
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium">
-        {message.senderName.slice(0, 2).toUpperCase()}
+        {initials}
       </div>
       <div className={cn("flex max-w-[70%] flex-col gap-0.5", isOwn && "items-end")}>
         <div className="flex items-baseline gap-2">
@@ -27,7 +28,7 @@ export function MessageItem({ message }: MessageItemProps) {
             isOwn ? "bg-primary text-primary-foreground" : "bg-muted"
           )}
         >
-          {message.content}
+          {message.content.trim()}
         </div>
       </div>
     </div>
