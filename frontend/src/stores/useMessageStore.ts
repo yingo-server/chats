@@ -30,10 +30,13 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       const res = await chatApi.getMessages(roomId, undefined, 30)
       if (get()._fetchGen !== gen) return
       if (res.ok) {
-        set({
-          messages: reset ? res.items : [...get().messages, ...res.items],
-          hasMore: res.hasMore,
-          cursor: res.cursor,
+        set((state) => {
+          if (state._fetchGen !== gen || state.lastRoomId !== roomId) return state
+          return {
+            messages: reset ? res.items : [...state.messages, ...res.items],
+            hasMore: res.hasMore,
+            cursor: res.cursor,
+          }
         })
       }
     } finally {
@@ -52,11 +55,14 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       const res = await chatApi.getMessages(roomId, cursor, 30)
       if (get()._fetchGen !== gen) return
       if (res.ok) {
-        set((state) => ({
-          messages: [...state.messages, ...res.items],
-          hasMore: res.hasMore,
-          cursor: res.cursor,
-        }))
+        set((state) => {
+          if (state._fetchGen !== gen || state.lastRoomId !== roomId) return state
+          return {
+            messages: [...state.messages, ...res.items],
+            hasMore: res.hasMore,
+            cursor: res.cursor,
+          }
+        })
       }
     } finally {
       if (get()._fetchGen === gen) {
