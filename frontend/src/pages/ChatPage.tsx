@@ -42,24 +42,24 @@ export default function ChatPage() {
 
   const room = rooms.find((r) => r.id === (roomId || currentRoomId))
 
-  const dmPartner = room?.type === "direct"
-    ? room.memberIds.find((id) => id !== user?.id)
-    : null
-
-  if (loading && rooms.length === 0) {
-    return (
-      <div className="flex h-full flex-col gap-4 p-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-      </div>
-    )
-  }
-
   if (!room) {
+    if (loading) {
+      return (
+        <div className="flex h-full flex-col gap-4 p-4">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
+      )
+    }
     return <EmptyState />
   }
+
+  const memberIds = room.memberIds ?? []
+  const dmPartner = room.type === "direct"
+    ? memberIds.find((id) => id !== user?.id)
+    : null
 
   const headerTitle = room.type === "group" && room.name
     ? room.name
@@ -71,7 +71,7 @@ export default function ChatPage() {
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 border-b px-4 py-2">
         <h2 className="font-semibold">{headerTitle}</h2>
-        <span className="text-xs text-muted-foreground">{room.memberIds.length} members</span>
+        <span className="text-xs text-muted-foreground">{memberIds.length} members</span>
         {reconnecting && (
           <span className="ml-auto flex items-center gap-1 text-xs text-amber-500">
             Reconnecting...
