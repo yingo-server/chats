@@ -108,7 +108,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, user_id: payload.userId, scopes: payload.scopes, permission: payload.permission });
   });
 
-  // 鈺愨晲鈺?鎼滅储鐢ㄦ埛锛堟寜 globalName 妯＄硦鍖归厤锛夆晲鈺愨晲
+  // Search users by globalName (fuzzy match)
   app.get("/api/v1/users/search", async (req, reply) => {
     const auth = req.headers.authorization;
     if (!auth?.startsWith("Bearer ")) return reply.status(401).send({ ok: false, error: "missing token" });
@@ -125,7 +125,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       return reply.send({ ok: true, users: rows });
     } catch (e: any) {
       log.error({ err: e }, "searchUsers failed");
-      return reply.status(500).send({ ok: false, error: "鎼滅储澶辫触" });
+      return reply.status(500).send({ ok: false, error: "search failed" });
     }
   });
 
