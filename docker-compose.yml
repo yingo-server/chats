@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   user-db:
     image: postgres:16-alpine
@@ -41,7 +39,7 @@ services:
       retries: 10
 
   user-service:
-    image: yingo-user:local
+    image: ghcr.io/yingo-server/yingo-user:latest
     restart: unless-stopped
     ports:
       - "9000:9000"
@@ -60,7 +58,7 @@ services:
         condition: service_healthy
 
   chat-service:
-    image: yingo-chat:local
+    image: ghcr.io/yingo-server/yingo-chat:latest
     restart: unless-stopped
     ports:
       - "9001:9001"
