@@ -33,14 +33,14 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   createDirect: async (targetUserId) => {
     const res = await chatApi.createDirectRoom({ targetUserId })
     if (!res.ok) throw new Error(res.error)
-    get().upsertRoom(res.room)
+    if (res.room) get().upsertRoom(res.room)
     return res.room
   },
 
   createGroup: async (name, memberIds) => {
     const res = await chatApi.createGroupRoom({ name, memberIds })
     if (!res.ok) throw new Error(res.error)
-    get().upsertRoom(res.room)
+    if (res.room) get().upsertRoom(res.room)
     return res.room
   },
 
