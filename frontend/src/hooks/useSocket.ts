@@ -10,7 +10,7 @@ export function useSocket() {
   const [connected, setConnected] = useState(false)
   const joinedRoomsRef = useRef<Set<string>>(new Set())
   const longToken = useAuthStore((s) => s.longToken)
-  const chatApiUrl = import.meta.env.VITE_CHAT_API || window.location.origin
+  const chatApiUrl = import.meta.env.VITE_CHAT_API || `${window.location.origin}/chat-api`
 
   useEffect(() => {
     if (!longToken) return

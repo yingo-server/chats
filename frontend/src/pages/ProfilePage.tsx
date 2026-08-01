@@ -1,4 +1,5 @@
 import { useParams } from "react-router"
+import { useEffect, useState } from "react"
 import { useAuthStore } from "@/stores/useAuthStore"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -6,12 +7,48 @@ import { Separator } from "@/components/ui/separator"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { timeFull } from "@/lib/utils"
 import { Shield, Clock, User } from "lucide-react"
+import * as userApi from "@/api/user"
+
+interface ProfileUser {
+  id: string
+  globalName: string
+  permission: "admin" | "user"
+  online: boolean
+  createdAt: number
+  lastOnlineAt: number
+}
 
 export default function ProfilePage() {
   const { id } = useParams<{ id: string }>()
   const user = useAuthStore((s) => s.user)
   const isOwn = id === user?.id || !id
-  const displayUser = isOwn ? user : null
+  const [displayUser, setDisplayUser] = useState<ProfileUser | null>(isOwn ? user : null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (isOwn || !user) return
+    setLoading(true)
+    userApi.adminGetUser(id!).then((res) => {
+      if (res.ok && res.user) {
+        setDisplayUser({
+          id: res.user.id,
+          globalName: res.user.globalName,
+          permission: res.user.permission,
+          online: res.user.online,
+          createdAt: res.user.createdAt,
+          lastOnlineAt: res.user.lastOnlineAt,
+        })
+      }
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [id, isOwn, user])
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+      </div>
+    )
+  }
 
   if (!displayUser) {
     return (

@@ -1,16 +1,21 @@
 import { useParams } from "react-router"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRoomStore } from "@/stores/useRoomStore"
 import { useSocket } from "@/hooks/useSocket"
 import { MessageList } from "@/components/chat/MessageList"
 import { MessageInput } from "@/components/chat/MessageInput"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useAuthStore } from "@/stores/useAuthStore"
+import { useToast } from "@/components/ui/toast"
 
 export default function ChatPage() {
   const { roomId } = useParams<{ roomId: string }>()
   const { currentRoomId, setCurrentRoom, rooms, loading } = useRoomStore()
   const { joinRoom, leaveRoom, connected } = useSocket()
+  const user = useAuthStore((s) => s.user)
+  const { addToast } = useToast()
+  const [reconnecting, setReconnecting] = useState(false)
 
   useEffect(() => {
     if (roomId && roomId !== currentRoomId) {
@@ -25,7 +30,21 @@ export default function ChatPage() {
     }
   }, [currentRoomId, joinRoom, leaveRoom])
 
+  useEffect(() => {
+    if (!connected && currentRoomId) {
+      setReconnecting(true)
+      const timer = setTimeout(() => setReconnecting(false), 5000)
+      return () => clearTimeout(timer)
+    } else {
+      setReconnecting(false)
+    }
+  }, [connected, currentRoomId])
+
   const room = rooms.find((r) => r.id === (roomId || currentRoomId))
+
+  const dmPartner = room?.type === "direct"
+    ? room.memberIds.find((id) => id !== user?.id)
+    : null
 
   if (loading && rooms.length === 0) {
     return (
@@ -42,12 +61,23 @@ export default function ChatPage() {
     return <EmptyState />
   }
 
+  const headerTitle = room.type === "group" && room.name
+    ? room.name
+    : dmPartner
+      ? `DM with ${dmPartner}`
+      : "Direct Message"
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 border-b px-4 py-2">
-        <h2 className="font-semibold">{room.type === "group" && room.name ? room.name : "Direct Message"}</h2>
+        <h2 className="font-semibold">{headerTitle}</h2>
         <span className="text-xs text-muted-foreground">{room.memberIds.length} members</span>
-        {connected && (
+        {reconnecting && (
+          <span className="ml-auto flex items-center gap-1 text-xs text-amber-500">
+            Reconnecting...
+          </span>
+        )}
+        {connected && !reconnecting && (
           <span className="ml-auto flex items-center gap-1 text-xs text-green-500">
             <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
             Connected

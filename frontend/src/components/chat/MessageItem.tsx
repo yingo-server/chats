@@ -23,7 +23,7 @@ export function MessageItem({ message }: MessageItemProps) {
         </div>
         <div
           className={cn(
-            "rounded-xl px-3 py-1.5 text-sm",
+            "rounded-xl px-3 py-1.5 text-sm whitespace-pre-wrap break-words",
             isOwn ? "bg-primary text-primary-foreground" : "bg-muted"
           )}
         >

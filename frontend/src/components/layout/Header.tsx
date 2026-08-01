@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router"
-import { LogOut, User } from "lucide-react"
+import { LogOut, User, MessageSquare } from "lucide-react"
 import { useAuthStore } from "@/stores/useAuthStore"
 import { useUIStore } from "@/stores/useUIStore"
 import { Button } from "@/components/ui/button"
@@ -26,6 +26,11 @@ export function Header() {
       <Button variant="ghost" size="icon" className="md:hidden" onClick={toggleSidebar}>
         <Menu className="h-5 w-5" />
       </Button>
+
+      <div className="flex items-center gap-2">
+        <MessageSquare className="h-5 w-5 text-primary" />
+        <span className="font-semibold hidden sm:inline">Yingo</span>
+      </div>
 
       <div className="flex-1" />
 
