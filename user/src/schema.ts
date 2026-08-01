@@ -19,7 +19,8 @@ export const users = pgTable("users", {
 export const tokens = pgTable("tokens", {
   id: varchar("id", { length: 16 }).primaryKey(),
   userId: varchar("user_id", { length: 16 }).notNull().references(() => users.id),
-  tokenLookup: varchar("token_lookup", { length: 64 }).notNull().unique(),  // SHA-256(rawToken) for indexed lookup
+  tokenLookup: varchar("token_lookup", { length: 64 }).notNull().unique(),  // SHA-256(longToken) for indexed lookup
+  shortLookup: varchar("short_lookup", { length: 64 }).notNull().unique(),  // SHA-256(shortToken) for indexed lookup
   shortHash: varchar("short_hash", { length: 255 }).notNull(),  // HMAC(secret + salt + shortToken)
   longHash: varchar("long_hash", { length: 255 }).notNull(),    // HMAC(secret + salt + longToken)
   tokenSalt: varchar("token_salt", { length: 32 }).notNull(),

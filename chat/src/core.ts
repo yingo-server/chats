@@ -4,6 +4,7 @@ import postgres from "postgres";
 import { createClient } from "./redis.js";
 import { coldMessages, rooms, roomMembers } from "./schema.js";
 import { fetchUser } from "./api.js";
+import { sanitizeMessage } from "./utils.js";
 import { randomBytes } from "node:crypto";
 import pino from "pino";
 
@@ -21,12 +22,6 @@ const redis = createClient();
 export { redis };
 
 const FIVE_MIN = 300_000;
-
-// 过滤敏感字段，不暴露给前端
-function sanitizeMessage(msg: any) {
-  const { senderIp, ...rest } = msg;
-  return rest;
-}
 
 function genId(): string {
   const ts = Date.now().toString(); // 13 位毫秒时间戳，2286 年前不会回绕
@@ -86,7 +81,8 @@ export async function getRoomMembers(roomId: string): Promise<string[]> {
 // ═══ 发送消息 → 写入热区(Redis) ═══
 export async function sendMessage(roomId: string, senderId: string, content: string, type: string, ip: string, bypassMembership = false) {
   if (!content || content.length > 10000) throw new Error("content must be 1-10000 characters");
-  if (type === undefined || type === null || typeof type !== "string" || type.length > 8) throw new Error("type must be 1-8 characters");
+  const ALLOWED_TYPES = ["text"];
+  if (!type || typeof type !== "string" || !ALLOWED_TYPES.includes(type)) throw new Error("type must be 'text'");
   if (!bypassMembership) {
     const member = await isRoomMember(roomId, senderId);
     if (!member) throw new Error("not a room member");
@@ -274,7 +270,7 @@ export async function createDirectRoom(a: string, b: string) {
   const [u1, u2] = [a, b].sort();
   const lockKey = `lock:direct:${u1}:${u2}`;
   let locked = false;
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 25; i++) {
     try {
       const ok = await redis.set(lockKey, "1", "EX", 8, "NX");
       if (ok === "OK") { locked = true; break; }

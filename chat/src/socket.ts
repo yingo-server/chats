@@ -2,16 +2,15 @@ import type { Server, Socket } from "socket.io";
 import { sendMessage, isRoomMember } from "./core.js";
 import { verifyToken, checkRateLimit } from "./api.js";
 import { createClient } from "./redis.js";
+import { sanitizeMessage } from "./utils.js";
 
 import pino from "pino";
 
-function sanitizeMessage(msg: any) {
-  const { senderIp, ...rest } = msg;
-  return rest;
-}
-
 const log = pino({ level: process.env.LOG_LEVEL || "info", name: "chat-socket" });
 const redis = createClient();
+
+const MAX_INFLIGHT = 50;
+const inflightCount = new Map<string, number>();
 
 const onlineDebounce = new Map<string, number>();
 // 每个用户当前连接的 socket 集合（多端在线：任一断开不下线）
@@ -84,6 +83,12 @@ export function setupSocketHandlers(io: Server): void {
     });
 
     socket.on("v1:message", async ({ roomId, content, type }, cb) => {
+      const current = inflightCount.get(uid) || 0;
+      if (current >= MAX_INFLIGHT) {
+        if (cb) cb({ ok: false, error: "too many pending messages" });
+        return;
+      }
+      inflightCount.set(uid, current + 1);
       try {
         refreshOnline(uid);
         if (!roomId || typeof roomId !== "string") throw new Error("invalid roomId");
@@ -100,6 +105,9 @@ export function setupSocketHandlers(io: Server): void {
         const errMsg = e.message || "internal error";
         if (cb) cb({ ok: false, error: errMsg });
         else socket.emit("v1:error", { message: errMsg });
+      } finally {
+        const c = (inflightCount.get(uid) || 1) - 1;
+        if (c <= 0) inflightCount.delete(uid); else inflightCount.set(uid, c);
       }
     });
 

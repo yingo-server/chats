@@ -50,11 +50,15 @@ export async function secureFetch(url: string, init?: RequestInit): Promise<Resp
   return fetch(url, init);
 }
 
-// ═══ verifyToken: 带重试 + 单飞（同一 token 并发只查一次，避免击穿 user 服务）═══
+// ═══ verifyToken: 带重试 + 单飞 + 短缓存（避免每个 socket 连接都查 user 服务）═══
 const inflight = new Map<string, Promise<AuthResult | null>>();
+const verifyCache = new Map<string, { result: AuthResult | null; ts: number }>();
+const VERIFY_CACHE_TTL = 30_000;
 
 export function verifyToken(token: string): Promise<AuthResult | null> {
   if (!token) return Promise.resolve(null);
+  const cached = verifyCache.get(token);
+  if (cached && Date.now() - cached.ts < VERIFY_CACHE_TTL) return Promise.resolve(cached.result);
   const existing = inflight.get(token);
   if (existing) return existing;
   const p = doVerifyToken(token).finally(() => { inflight.delete(token); });
@@ -72,9 +76,15 @@ async function doVerifyToken(token: string): Promise<AuthResult | null> {
         signal: controller.signal,
       } as any);
       clearTimeout(timeout);
-      if (!r.ok) return null;
+      if (!r.ok) { verifyCache.set(token, { result: null, ts: Date.now() }); return null; }
       const d = await r.json() as any;
-      return d.ok ? { userId: d.user_id, scopes: d.scopes, permission: d.permission || "user" } : null;
+      const result = d.ok ? { userId: d.user_id, scopes: d.scopes, permission: d.permission || "user" } : null;
+      verifyCache.set(token, { result, ts: Date.now() });
+      if (verifyCache.size > 10000) {
+        const oldest = verifyCache.keys().next().value;
+        if (oldest) verifyCache.delete(oldest);
+      }
+      return result;
     } catch (e: any) {
       if (attempt === 0) {
         log.warn({ attempt, err: e.message }, "verifyToken failed, retrying");
@@ -84,6 +94,7 @@ async function doVerifyToken(token: string): Promise<AuthResult | null> {
       }
     }
   }
+  verifyCache.set(token, { result: null, ts: Date.now() });
   return null;
 }
 

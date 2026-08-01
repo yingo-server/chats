@@ -143,6 +143,7 @@ export async function loginUser(username: string, password: string) {
   const shortHash = tokenSalt + ":" + createHmac("sha256", TOKEN_SECRET).update(tokenSalt + shortToken).digest("hex");
   const longHash = tokenSalt + ":" + createHmac("sha256", TOKEN_SECRET).update(tokenSalt + longToken).digest("hex");
   const lookupLong = createHash("sha256").update(longToken).digest("hex");
+  const lookupShort = createHash("sha256").update(shortToken).digest("hex");
   const now = Date.now();
 
   // ID 碰撞自动重试（最多3次）
@@ -152,6 +153,7 @@ export async function loginUser(username: string, password: string) {
       await db.insert(tokens).values({
         id: tid, userId: user.id,
         tokenLookup: lookupLong,
+        shortLookup: lookupShort,
         shortHash, longHash, tokenSalt,
         shortExpires: now + 3600_000,    // 1h
         longExpires: now + 2592000_000,  // 30d
@@ -190,13 +192,12 @@ export async function verifyToken(tokenStr: string): Promise<{ userId: string; s
   if (cached && Date.now() - cached.ts < TOKEN_CACHE_TTL) return cached.result;
 
   const now = Date.now();
-  const lookupHash = createHash("sha256").update(tokenStr).digest("hex");
-
-  // 通过 tokenLookup 索引直接定位，O(1) 查找
+  // 通过 tokenLookup / shortLookup 索引直接定位，O(1) 查找
   let candidate: any = null;
+  const lookupHash = createHash("sha256").update(tokenStr).digest("hex");
   try {
     const rows = await db.select().from(tokens).innerJoin(users, eq(tokens.userId, users.id))
-      .where(eq(tokens.tokenLookup, lookupHash))
+      .where(sql`${tokens.tokenLookup} = ${lookupHash} OR ${tokens.shortLookup} = ${lookupHash}`)
       .limit(1);
     candidate = rows[0] || null;
   } catch (e: any) {
@@ -233,6 +234,10 @@ export async function verifyToken(tokenStr: string): Promise<{ userId: string; s
     db.update(tokens).set({ lastUsedAt: Date.now() }).where(eq(tokens.id, t.id)).catch((e) => { log.warn({ err: e }, "Failed to update lastUsedAt"); });
     const result = { userId: t.userId, scopes: t.scopes.trim().split(/\s+/).filter(Boolean), permission: u.permission };
     tokenVerifyCache.set(tokenStr, { result, ts: Date.now() });
+    if (tokenVerifyCache.size > TOKEN_CACHE_MAX) {
+      const oldest = tokenVerifyCache.keys().next().value;
+      if (oldest) tokenVerifyCache.delete(oldest);
+    }
     return result;
   }
 

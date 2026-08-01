@@ -9,10 +9,10 @@ import pino from "pino";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info", name: "user-routes" });
 
-// ═══ 登录速率限制: 5次/60秒/IP ═══
+// ═══ 登录速率限制: 可通过环境变量配置 ═══
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
-const LOGIN_RATE_LIMIT = 5;
-const LOGIN_RATE_WINDOW = 60_000;
+const LOGIN_RATE_LIMIT = parseInt(process.env.LOGIN_RATE_LIMIT || "30", 10);
+const LOGIN_RATE_WINDOW = parseInt(process.env.LOGIN_RATE_WINDOW || "60000", 10);
 
 function checkLoginRateLimit(ip: string): boolean {
   const now = Date.now();
@@ -86,7 +86,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         return reply.status(429).send({ ok: false, error: "登录尝试过多，请稍后再试" });
       }
       const { username, password } = req.body as any;
-      requireString(req.body, "username", 1, 64);
+      requireString(req.body, "username", 2, 64);
       requireString(req.body, "password", 1, 128);
       const result = await loginUser(username, password);
       return reply.send({ ok: true, ...result });

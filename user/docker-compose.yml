@@ -18,15 +18,18 @@ services:
       retries: 5
 
   user-service:
-    image: yingo344977/yingo-user:latest
     build: .
     restart: unless-stopped
     ports:
       - "9000:9000"
     environment:
       DATABASE_URL: postgres://yingo:yingo123@user-db:5432/cold_user
-      PEPPER_SECRET: dev-pepper-change-in-production
-      TOKEN_SECRET: dev-token-secret-change-in-production
+      CORS_ORIGINS: "https://chats.344977.xyz,http://localhost:3000"
+      ADMIN_USERNAME: "${ADMIN_USERNAME:-}"
+      INTERNAL_API_KEY: "${INTERNAL_API_KEY:-dev-internal-key-change-in-production}"
+      PEPPER_SECRET: "${PEPPER_SECRET:-dev-pepper-change-in-production}"
+      TOKEN_SECRET: "${TOKEN_SECRET:-dev-token-secret-change-in-production}"
+      LOG_LEVEL: info
     depends_on:
       user-db:
         condition: service_healthy
