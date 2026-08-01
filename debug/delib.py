@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """Yingo 微服务全链路压力测试 (本地开发环境) — 完整版"""
 
-import requests, sys, time, random, string, json, threading, hmac, hashlib, secrets
+import requests, sys, time, random, string, json, threading, hmac, hashlib, secrets, os
 from urllib.parse import urljoin
 import urllib3
 import socketio
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# ═══ 配置（本地开发环境）═══
-USER_BASE = "http://localhost:9000"
-CHAT_BASE = "http://localhost:9001"
+# ═══ 配置（云端生产环境，可用环境变量覆盖）═══
+USER_BASE = os.environ.get("USER_BASE", "https://server.344977.xyz:9000")
+CHAT_BASE = os.environ.get("CHAT_BASE", "https://server.344977.xyz:9001")
+CLOUD_MODE = os.environ.get("CLOUD_MODE", "1") == "1"
 PEPPER = "dev-pepper-change-in-production"
 PASS = 0
 FAIL = 0
@@ -192,6 +193,9 @@ def wait_service(base, name, timeout=60):
 # ═══ 数据库重置（本地 Docker: local-pg / local-redis）═══
 def reset_db():
     log("\n=== 重置数据库 ===")
+    if CLOUD_MODE:
+        log("  CLOUD_MODE=1，跳过本地 docker 重置（需在服务器手动执行清库命令）")
+        return
     chat_sql = "TRUNCATE rooms, room_members, cold_messages CASCADE;"
     user_sql = "TRUNCATE users, tokens, api_keys CASCADE;"
     import subprocess
@@ -882,14 +886,16 @@ def test_Chat就绪检查():
     return TR().check_status(r, 200)
 
 def test_User指标():
-    r = SESSION.get(urljoin(USER_BASE, "/api/v1/metrics"), timeout=5)
+    r = SESSION.get(urljoin(USER_BASE, "/api/v1/metrics"),
+        headers={"Authorization": f"Bearer {get_admin_token()}"}, timeout=5)
     tr = TR().check_status(r, 200)
     if r.status_code == 200 and "uptime" not in r.json():
         tr.fail("缺少 uptime 字段")
     return tr
 
 def test_Chat指标():
-    r = SESSION.get(urljoin(CHAT_BASE, "/api/v1/metrics"), timeout=5)
+    r = SESSION.get(urljoin(CHAT_BASE, "/api/v1/metrics"),
+        headers={"Authorization": f"Bearer {get_admin_token()}"}, timeout=5)
     tr = TR().check_status(r, 200)
     if r.status_code == 200 and "uptime" not in r.json():
         tr.fail("缺少 uptime 字段")
@@ -1879,14 +1885,16 @@ def test_连续错误请求():
     return TR().check_status(r, 200).check_body(r, ok=True)
 
 def test_健康检查基线():
-    r1 = SESSION.get(urljoin(USER_BASE, "/api/v1/metrics"), timeout=5)
+    r1 = SESSION.get(urljoin(USER_BASE, "/api/v1/metrics"),
+        headers={"Authorization": f"Bearer {get_admin_token()}"}, timeout=5)
     if r1.status_code != 200:
         return TR().check_status(r1, 200)
     mem1 = r1.json().get("memory", {}).get("rss", 0)
     for i in range(50):
         SESSION.get(urljoin(USER_BASE, "/api/v1/verify"),
             headers={"Authorization": f"Bearer {USERS['alice']['token']}"}, timeout=5)
-    r2 = SESSION.get(urljoin(USER_BASE, "/api/v1/metrics"), timeout=5)
+    r2 = SESSION.get(urljoin(USER_BASE, "/api/v1/metrics"),
+        headers={"Authorization": f"Bearer {get_admin_token()}"}, timeout=5)
     if r2.status_code != 200:
         return TR().check_status(r2, 200)
     mem2 = r2.json().get("memory", {}).get("rss", 0)
@@ -2344,9 +2352,9 @@ def run_all():
         log(f"致命错误: 初始化失败: {e}")
         sys.exit(1)
 
-    # 将 alice 提权为 admin（通过 DB 直接更新）
+    # 将 alice 提权为 admin（本地通过 DB 直接更新；云端: 首个注册用户自动为 admin，无需提权）
     alice_id = USERS["alice"]["id"]
-    if alice_id:
+    if alice_id and not CLOUD_MODE:
         import subprocess
         try:
             cmd = f"UPDATE users SET permission = 'admin' WHERE id = '{alice_id}';"
