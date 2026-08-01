@@ -9,8 +9,8 @@ import socketio
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # ═══ 配置（本地开发环境）═══
-USER_BASE = "http://localhost:9000"
-CHAT_BASE = "http://localhost:9001"
+USER_BASE = "https://server.344977.xyz:9000"
+CHAT_BASE = "https://server.344977.xyz:9001"
 PEPPER = "dev-pepper-change-in-production"
 PASS = 0
 FAIL = 0
