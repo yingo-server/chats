@@ -28,11 +28,13 @@
 
 | 服务 | 镜像 | 端口 | 依赖 |
 |------|------|------|------|
-| user-service | `ghcr.io/yingo-server/yingo-user:latest` | 9000 | user-db |
-| chat-service | `ghcr.io/yingo-server/yingo-chat:latest` | 9001 | chat-db, chat-cache, user-service |
+| user-service | `ghcr.io/yingo-server/yingo-user:v6.1-stable-law` | 9000 | user-db |
+| chat-service | `ghcr.io/yingo-server/yingo-chat:v6.1-stable-law` | 9001 | chat-db, chat-cache, user-service |
 | user-db | `postgres:16-alpine` | 5432 | - |
 | chat-db | `postgres:16-alpine` | 5432 | - |
 | chat-cache | `redis:7-alpine` | 6379 | - |
+
+> 镜像 tag 说明：每次发布构建 `latest` + `vX.Y-*` 版本号 + `commit-sha` 三个标签；生产环境建议固定使用版本号 tag，避免 `latest` 意外漂移。
 
 ### Docker 网络
 
@@ -64,6 +66,123 @@ docker login ghcr.io -u yingo-server -g <GITHUB_PAT>
 ```bash
 docker network create yingo-net
 ```
+
+### 2.5 初始化数据库（首次部署 / 重置）
+
+> **重要**：表结构由代码定义，服务启动时不会自动建表。首次部署或需要重置时，必须手动建表。应用连接数据库使用 `colduser`/`coldchat` 用户（非 `yingo`），**建表后必须 GRANT 权限**，否则应用会报 `42501 permission denied`。
+
+```bash
+# ═══ 1. 清空 user-db 全部表并重建 ═══
+docker exec -i user-db psql -U yingo -d cold_user <<'SQL'
+DROP TABLE IF EXISTS oauth_clients, api_keys, tokens, users CASCADE;
+CREATE TABLE users (
+  id varchar(16) PRIMARY KEY,
+  global_name varchar(64) NOT NULL UNIQUE,
+  app_names jsonb NOT NULL,
+  password_hash text NOT NULL,
+  password_salt varchar(32) NOT NULL,
+  created_at bigint NOT NULL,
+  last_online_at bigint NOT NULL,
+  permission varchar(16) NOT NULL DEFAULT 'user',
+  online boolean NOT NULL DEFAULT false
+);
+CREATE TABLE tokens (
+  id varchar(16) PRIMARY KEY,
+  user_id varchar(16) NOT NULL REFERENCES users(id),
+  token_lookup varchar(64) NOT NULL UNIQUE,
+  short_lookup varchar(64) NOT NULL UNIQUE,
+  short_hash varchar(255) NOT NULL,
+  long_hash varchar(255) NOT NULL,
+  token_salt varchar(32) NOT NULL,
+  short_expires bigint NOT NULL,
+  long_expires bigint NOT NULL,
+  scopes text NOT NULL DEFAULT '',
+  created_at bigint NOT NULL,
+  revoked_at bigint,
+  last_used_at bigint
+);
+CREATE INDEX idx_tokens_user_id ON tokens (user_id);
+CREATE INDEX idx_tokens_long_expires ON tokens (long_expires);
+CREATE INDEX idx_tokens_short_expires ON tokens (short_expires);
+CREATE INDEX idx_tokens_revoked_at ON tokens (revoked_at);
+CREATE INDEX idx_tokens_lookup ON tokens (token_lookup);
+CREATE TABLE api_keys (
+  id varchar(16) PRIMARY KEY,
+  user_id varchar(16) NOT NULL REFERENCES users(id),
+  key_hash varchar(255) NOT NULL,
+  key_salt varchar(32) NOT NULL,
+  prefix varchar(4) NOT NULL,
+  name varchar(64) NOT NULL,
+  scopes text NOT NULL DEFAULT '',
+  rate_limit integer NOT NULL DEFAULT 100,
+  expires_at bigint NOT NULL,
+  created_at bigint NOT NULL,
+  last_used_at bigint,
+  revoked_at bigint
+);
+CREATE TABLE oauth_clients (
+  id varchar(16) PRIMARY KEY,
+  client_id varchar(32) NOT NULL UNIQUE,
+  client_secret_hash varchar(255) NOT NULL,
+  name varchar(64) NOT NULL,
+  app_id varchar(32) NOT NULL,
+  allowed_scopes text NOT NULL DEFAULT '',
+  created_at bigint NOT NULL,
+  status integer NOT NULL DEFAULT 1
+);
+SQL
+
+# ═══ 2. 清空 chat-db 全部表并重建 ═══
+docker exec -i chat-db psql -U yingo -d cold_chat <<'SQL'
+DROP TABLE IF EXISTS cold_messages, room_members, rooms CASCADE;
+CREATE TABLE rooms (
+  id varchar(16) PRIMARY KEY,
+  type varchar(8) NOT NULL DEFAULT 'direct',
+  name varchar(64),
+  creator_id varchar(16) NOT NULL,
+  created_at bigint NOT NULL
+);
+CREATE TABLE room_members (
+  id varchar(16) PRIMARY KEY,
+  room_id varchar(16) NOT NULL,
+  user_id varchar(16) NOT NULL,
+  joined_at bigint NOT NULL
+);
+CREATE UNIQUE INDEX idx_room_members_room_user_unique ON room_members (room_id, user_id);
+CREATE TABLE cold_messages (
+  id varchar(16) PRIMARY KEY,
+  room_id varchar(16) NOT NULL,
+  sender_id varchar(16) NOT NULL,
+  sender_name varchar(64) NOT NULL,
+  sender_app_name varchar(64) NOT NULL,
+  content text,
+  type varchar(8) NOT NULL DEFAULT 'text',
+  sent_at bigint NOT NULL,
+  sender_ip varchar(45),
+  recalled boolean NOT NULL DEFAULT false,
+  manually_deleted boolean NOT NULL DEFAULT false,
+  auto_deleted boolean NOT NULL DEFAULT false
+);
+SQL
+
+# ═══ 3. 授权应用用户（关键！否则 42501 permission denied）═══
+docker exec user-db psql -U yingo -d cold_user -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO colduser; GRANT USAGE ON SCHEMA public TO colduser;"
+docker exec chat-db psql -U yingo -d cold_chat -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO coldchat; GRANT USAGE ON SCHEMA public TO coldchat;"
+
+# ═══ 4. 清空 Redis（热消息/在线状态缓存）═══
+docker exec chat-cache redis-cli FLUSHALL
+
+# ═══ 5. 重启服务使连接池/内存缓存失效 ═══
+docker restart user-service chat-service
+
+# ═══ 6. 验证 ═══
+docker exec user-db psql -U yingo -d cold_user -c "\dt"
+docker exec chat-db psql -U yingo -d cold_chat -c "\dt"
+curl -k https://server.344977.xyz:9000/api/v1/health
+curl -k https://server.344977.xyz:9001/api/v1/health
+```
+
+> 初始管理员：空库时**第一个注册的用户自动成为 admin**（代码内建逻辑），无需手动创建。
 
 ### 3. 启动 PostgreSQL 数据库
 
@@ -113,7 +232,7 @@ docker run -d --name user-service --network yingo-net \
   -e REDIS_URL="redis://chat-cache:6379" \
   -v /etc/ssl/yingo:/etc/ssl/yingo:ro \
   --restart unless-stopped \
-  ghcr.io/yingo-server/yingo-user:latest
+  ghcr.io/yingo-server/yingo-user:v6.1-stable-law
 ```
 
 ### 5. 启动 Chat Service
@@ -134,7 +253,7 @@ docker run -d --name chat-service --network yingo-net \
   -e TOKEN_SECRET="dev-token-secret-change-in-production" \
   -v /etc/ssl/yingo:/etc/ssl/yingo:ro \
   --restart unless-stopped \
-  ghcr.io/yingo-server/yingo-chat:latest
+  ghcr.io/yingo-server/yingo-chat:v6.1-stable-law
 ```
 
 ### 6. 验证
@@ -234,7 +353,7 @@ docker run -d --name user-service --network yingo-net \
   -e INTERNAL_API_KEY="<INTERNAL_API_KEY>" \
   -v <SSL_CERT_DIR>:/etc/ssl/yingo:ro \
   --restart unless-stopped \
-  ghcr.io/yingo-server/yingo-user:latest
+  ghcr.io/yingo-server/yingo-user:v6.1-stable-law
 ```
 
 ### 7. 启动 Chat Service
@@ -255,32 +374,47 @@ docker run -d --name chat-service --network yingo-net \
   -e TOKEN_SECRET="<TOKEN_SECRET>" \
   -v <SSL_CERT_DIR>:/etc/ssl/yingo:ro \
   --restart unless-stopped \
-  ghcr.io/yingo-server/yingo-chat:latest
+  ghcr.io/yingo-server/yingo-chat:v6.1-stable-law
 ```
 
 ### 8. 前端部署
 
-前端为静态文件，放在 Nginx 或 CDN 即可。修改 `config.js` 配置后端地址：
+> 前端仓库 `yingo-server/chats-apps`（纯用户页面），静态构建后在 Netlify 手动部署。
 
-```javascript
-window.API_CONFIG = {
-  userApi: 'https://<DOMAIN>:9000',
-  chatApi: 'https://<DOMAIN>:9001',
-};
+前端为静态文件，放在 Nginx 或 CDN 即可。构建：
+
+```bash
+cd frontend
+npm install
+npm run build
+# 产物在 dist/，Netlify 直接拖入部署；_redirects 已内置 SPA 回退
 ```
 
 ---
 
 ## CI/CD 自动构建
 
-两个仓库配置了 GitHub Actions，push 到 main 分支自动构建并推送镜像到 ghcr.io。
+`yingo-server/chats` 仓库配置了 GitHub Actions，push 到 main 分支（`user/**`、`chat/**`、workflow 文件变更）自动构建并推送镜像到 ghcr.io。每次构建打三个标签：`latest` + `vX.Y-*` 版本号 + commit-sha。
 
 ### 仓库与镜像对应
 
 | 仓库 | 镜像 |
 |------|------|
-| `yingo-server/User-Source` | `ghcr.io/yingo-server/yingo-user:latest` |
-| `yingo-server/Chat-Source` | `ghcr.io/yingo-server/yingo-chat:latest` |
+| `yingo-server/chats` (`user/` 目录) | `ghcr.io/yingo-server/yingo-user` |
+| `yingo-server/chats` (`chat/` 目录) | `ghcr.io/yingo-server/yingo-chat` |
+
+### 发布新版本
+
+```bash
+# 1. 打版本标签（触发两个 workflow 重新构建 + 推送对应版本 tag 镜像）
+git tag vX.Y-stable-xxx
+git push origin vX.Y-stable-xxx
+
+# 2. 修改两个 workflow 中 type=raw,value=<版本号> 后推送 main
+git add .github/workflows/user-build.yml .github/workflows/chat-build.yml
+git commit -m "ci: tag vX.Y-stable-xxx on user and chat images"
+git push origin main
+```
 
 ### 手动触发构建
 
@@ -289,7 +423,7 @@ window.API_CONFIG = {
 curl -X POST \
   -H "Authorization: token <GITHUB_PAT>" \
   -H "Accept: application/vnd.github.v3+json" \
-  https://api.github.com/repos/yingo-server/User-Source/actions/workflows/user-build.yml/dispatches \
+  https://api.github.com/repos/yingo-server/chats/actions/workflows/user-build.yml/dispatches \
   -d '{"ref":"main"}'
 ```
 
@@ -338,15 +472,15 @@ curl -k -H "Authorization: Bearer <TOKEN>" \
 # 登录 ghcr.io
 docker login ghcr.io -u yingo-server -g <GITHUB_PAT>
 
-# 拉取最新
-docker pull ghcr.io/yingo-server/yingo-user:latest
-docker pull ghcr.io/yingo-server/yingo-chat:latest
+# 拉取指定版本（替换 <TAG> 为 vX.Y-* 或 commit-sha）
+docker pull ghcr.io/yingo-server/yingo-user:<TAG>
+docker pull ghcr.io/yingo-server/yingo-chat:<TAG>
 
 # 停止旧容器
 docker stop user-service chat-service
 docker rm user-service chat-service
 
-# 重新启动（使用上面的完整 docker run 命令）
+# 重新启动（使用上面的完整 docker run 命令，镜像 tag 用 <TAG>）
 ```
 
 ### 一键更新脚本
@@ -355,16 +489,18 @@ docker rm user-service chat-service
 #!/bin/bash
 set -e
 
+TAG=${1:-v6.1-stable-law}
+
 docker login ghcr.io -u yingo-server -g <GITHUB_PAT>
-docker pull ghcr.io/yingo-server/yingo-user:latest
-docker pull ghcr.io/yingo-server/yingo-chat:latest
+docker pull ghcr.io/yingo-server/yingo-user:$TAG
+docker pull ghcr.io/yingo-server/yingo-chat:$TAG
 
 for svc in user-service chat-service; do
   docker stop $svc 2>/dev/null || true
   docker rm $svc 2>/dev/null || true
 done
 
-# 重新启动（复制对应的 docker run 命令）
+# 重新启动（复制对应的 docker run 命令，镜像 tag 用 $TAG）
 ```
 
 ---
@@ -394,6 +530,7 @@ docker exec chat-cache redis-cli ping
 | `admin access required` | 缺少调试头或无 admin 权限 | 添加 `x-debug-admin` header |
 | `unauthorized` | Token 无效或过期 | 重新登录获取 Token |
 | `SSL handshake error` | 证书路径错误或未挂载 | 检查 `-v` 挂载和 `SSL_CERT`/`SSL_KEY` |
+| `42501 permission denied for table ...` | DROP+CREATE 后未给应用用户 GRANT | 执行初始化第 3 步的 GRANT 命令 |
 
 ### 查看容器配置
 
