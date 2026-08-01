@@ -78,3 +78,7 @@ export async function adminRemoveMember(roomId: string, userId: string) {
 export async function adminDeleteRoom(id: string) {
   return chatApi.delete<AdminDeleteRes>(`/api/v1/admin/rooms/${id}`)
 }
+
+export async function searchUsers(query: string) {
+  return chatApi.get<{ ok: boolean; users: { id: string; globalName: string; appNames: Record<string, string> }[] }>(`/api/v1/users/search?query=${encodeURIComponent(query)}`)
+}
