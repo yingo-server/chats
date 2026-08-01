@@ -9,7 +9,7 @@ import pino from "pino";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info", name: "user-routes" });
 
-// ═══ 登录速率限制: 可通过环境变量配置 ═══
+// 鈺愨晲鈺?鐧诲綍閫熺巼闄愬埗: 鍙€氳繃鐜鍙橀噺閰嶇疆 鈺愨晲鈺?
 const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 const LOGIN_RATE_LIMIT = parseInt(process.env.LOGIN_RATE_LIMIT || "30", 10);
 const LOGIN_RATE_WINDOW = parseInt(process.env.LOGIN_RATE_WINDOW || "60000", 10);
@@ -26,7 +26,7 @@ function checkLoginRateLimit(ip: string): boolean {
   return true;
 }
 
-// 每 5 分钟清理过期条目
+// 姣?5 鍒嗛挓娓呯悊杩囨湡鏉＄洰
 setInterval(() => {
   const now = Date.now();
   for (const [ip, entry] of loginAttempts) {
@@ -41,8 +41,8 @@ function safeCompare(a: string, b: string): boolean {
 
 
 function requireString(body: any, field: string, min: number, max: number): string {
-  if (!body || typeof body[field] !== "string") throw new Error(`${field} 必须是字符串`);
-  if (body[field].length < min || body[field].length > max) throw new Error(`${field} 长度须在 ${min}-${max} 字符之间`);
+  if (!body || typeof body[field] !== "string") throw new Error(`${field} 蹇呴』鏄瓧绗︿覆`);
+  if (body[field].length < min || body[field].length > max) throw new Error(`${field} 闀垮害椤诲湪 ${min}-${max} 瀛楃涔嬮棿`);
   return body[field];
 }
 
@@ -54,7 +54,7 @@ async function requireAdmin(req: any): Promise<{ userId: string; permission: str
   return { userId: payload.userId, permission: payload.permission };
 }
 
-// 目标用户若为 admin，是否系统内最后一个 admin
+// 鐩爣鐢ㄦ埛鑻ヤ负 admin锛屾槸鍚︾郴缁熷唴鏈€鍚庝竴涓?admin
 async function isLastAdmin(targetId: string): Promise<boolean> {
   const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(users)
     .where(and(eq(users.permission, "admin"), ne(users.id, targetId)));
@@ -62,7 +62,7 @@ async function isLastAdmin(targetId: string): Promise<boolean> {
 }
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
-  // ═══ 注册 ═══
+  // 鈺愨晲鈺?娉ㄥ唽 鈺愨晲鈺?
   app.post("/api/v1/register", async (req, reply) => {
     try {
       const { username, password, app_id } = req.body as any;
@@ -72,18 +72,18 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(201).send({ ok: true, user });
     } catch (e: any) {
       const msg = e?.message || "internal error";
-      // requireString / registerUser 的字段与业务错误 → 400；其余(DB故障等) → 500
-      const isValidation = /^(用户名|密码)|必须是字符串|长度须在/.test(msg);
-      return reply.status(isValidation ? 400 : 500).send({ ok: false, error: isValidation ? msg : "注册失败，请稍后重试" });
+      // requireString / registerUser 鐨勫瓧娈典笌涓氬姟閿欒 鈫?400锛涘叾浣?DB鏁呴殰绛? 鈫?500
+      const isValidation = /^(鐢ㄦ埛鍚峾瀵嗙爜)|蹇呴』鏄瓧绗︿覆|闀垮害椤诲湪/.test(msg);
+      return reply.status(isValidation ? 400 : 500).send({ ok: false, error: isValidation ? msg : "娉ㄥ唽澶辫触锛岃绋嶅悗閲嶈瘯" });
     }
   });
 
-  // ═══ 登录 ═══
+  // 鈺愨晲鈺?鐧诲綍 鈺愨晲鈺?
   app.post("/api/v1/login", async (req, reply) => {
     try {
       const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip;
       if (!checkLoginRateLimit(ip)) {
-        return reply.status(429).send({ ok: false, error: "登录尝试过多，请稍后再试" });
+        return reply.status(429).send({ ok: false, error: "鐧诲綍灏濊瘯杩囧锛岃绋嶅悗鍐嶈瘯" });
       }
       const { username, password } = req.body as any;
       requireString(req.body, "username", 2, 64);
@@ -92,13 +92,13 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       return reply.send({ ok: true, ...result });
     } catch (e: any) {
       const msg = e?.message || "internal error";
-      // 凭据错误(密码错误/用户不存在/字段缺失) → 401；其余(DB故障等) → 500
-      const isCredential = msg === "用户名或密码错误" || /必须是字符串|长度须在/.test(msg);
-      return reply.status(isCredential ? 401 : 500).send({ ok: false, error: isCredential ? msg : "登录失败，请稍后重试" });
+      // 鍑嵁閿欒(瀵嗙爜閿欒/鐢ㄦ埛涓嶅瓨鍦?瀛楁缂哄け) 鈫?401锛涘叾浣?DB鏁呴殰绛? 鈫?500
+      const isCredential = msg === "鐢ㄦ埛鍚嶆垨瀵嗙爜閿欒" || /蹇呴』鏄瓧绗︿覆|闀垮害椤诲湪/.test(msg);
+      return reply.status(isCredential ? 401 : 500).send({ ok: false, error: isCredential ? msg : "鐧诲綍澶辫触锛岃绋嶅悗閲嶈瘯" });
     }
   });
 
-  // ═══ 验证Token ═══
+  // 鈺愨晲鈺?楠岃瘉Token 鈺愨晲鈺?
   app.get("/api/v1/verify", async (req, reply) => {
     const auth = req.headers.authorization;
     if (!auth?.startsWith("Bearer ")) return reply.status(401).send({ ok: false, error: "missing token" });
@@ -108,7 +108,28 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, user_id: payload.userId, scopes: payload.scopes, permission: payload.permission });
   });
 
-  // ═══ 通过ID获取用户 (内部, 需要 Internal API Key) ═══
+  // 鈺愨晲鈺?鎼滅储鐢ㄦ埛锛堟寜 globalName 妯＄硦鍖归厤锛夆晲鈺愨晲
+  app.get("/api/v1/users/search", async (req, reply) => {
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith("Bearer ")) return reply.status(401).send({ ok: false, error: "missing token" });
+    const payload = await verifyToken(auth.slice(7));
+    if (!payload) return reply.status(401).send({ ok: false, error: "invalid token" });
+    const query = String((req.query as any).query || "").trim();
+    if (query.length < 1) return reply.send({ ok: true, users: [] });
+    try {
+      const rows = await db.select({
+        id: users.id, globalName: users.globalName, appNames: users.appNames,
+      }).from(users)
+        .where(sql`${users.globalName} LIKE ${"%" + query.replace(/%/g, "\\%") + "%"} ESCAPE '\\'`)
+        .limit(20);
+      return reply.send({ ok: true, users: rows });
+    } catch (e: any) {
+      log.error({ err: e }, "searchUsers failed");
+      return reply.status(500).send({ ok: false, error: "鎼滅储澶辫触" });
+    }
+  });
+
+  // 鈺愨晲鈺?閫氳繃ID鑾峰彇鐢ㄦ埛 (鍐呴儴, 闇€瑕?Internal API Key) 鈺愨晲鈺?
   app.get("/api/v1/internal/user/:id", async (req, reply) => {
     const internalKey = String(req.headers["x-internal-key"] || "");
     const expectedKey = process.env.INTERNAL_API_KEY;
@@ -122,7 +143,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, id: u.id, name: u.globalName, app_names: u.appNames });
   });
 
-  // ═══ 创建 API Key ═══
+  // 鈺愨晲鈺?鍒涘缓 API Key 鈺愨晲鈺?
   app.post("/api/v1/api-keys", async (req, reply) => {
     const auth = req.headers.authorization;
     if (!auth?.startsWith("Bearer ")) return reply.status(401).send({ ok: false, error: "missing token" });
@@ -137,13 +158,13 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(201).send({ ok: true, ...key });
     } catch (e: any) {
       const msg = e?.message || "internal error";
-      // 业务校验错误 → 400；其余（DB故障等）→ 500
-      const isBusiness = /^(用户不存在|name 须为|scopes 须为|有效期必须)/.test(msg);
-      return reply.status(isBusiness ? 400 : 500).send({ ok: false, error: isBusiness ? msg : "创建失败，请稍后重试" });
+      // 涓氬姟鏍￠獙閿欒 鈫?400锛涘叾浣欙紙DB鏁呴殰绛夛級鈫?500
+      const isBusiness = /^(鐢ㄦ埛涓嶅瓨鍦▅name 椤讳负|scopes 椤讳负|鏈夋晥鏈熷繀椤?/.test(msg);
+      return reply.status(isBusiness ? 400 : 500).send({ ok: false, error: isBusiness ? msg : "鍒涘缓澶辫触锛岃绋嶅悗閲嶈瘯" });
     }
   });
 
-  // ═══ 获取当前用户资料 ═══
+  // 鈺愨晲鈺?鑾峰彇褰撳墠鐢ㄦ埛璧勬枡 鈺愨晲鈺?
   app.get("/api/v1/users/me", async (req, reply) => {
     const auth = req.headers.authorization;
     if (!auth?.startsWith("Bearer ")) return reply.status(401).send({ ok: false, error: "missing token" });
@@ -154,7 +175,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, user });
   });
 
-  // ═══ 获取当前用户 Token 列表 ═══
+  // 鈺愨晲鈺?鑾峰彇褰撳墠鐢ㄦ埛 Token 鍒楄〃 鈺愨晲鈺?
   app.get("/api/v1/tokens/me", async (req, reply) => {
     const auth = req.headers.authorization;
     if (!auth?.startsWith("Bearer ")) return reply.status(401).send({ ok: false, error: "missing token" });
@@ -164,17 +185,17 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, tokens: tokenList, total: tokenList.length });
   });
 
-  // ═══ 健康检查 (liveness) ═══
+  // 鈺愨晲鈺?鍋ュ悍妫€鏌?(liveness) 鈺愨晲鈺?
   app.get("/api/v1/health", async () => ({ ok: true, service: "user-v1", uptime: process.uptime() }));
 
-  // ═══ 就绪检查 (readiness) ═══
+  // 鈺愨晲鈺?灏辩华妫€鏌?(readiness) 鈺愨晲鈺?
   app.get("/api/v1/ready", async () => {
     let dbOk = false;
     try { await db.execute(sql`SELECT 1`); dbOk = true; } catch {}
     return { ok: dbOk, service: "user-v1", db: dbOk ? "ok" : "error" };
   });
 
-  // ═══ Metrics (admin only) ═══
+  // 鈺愨晲鈺?Metrics (admin only) 鈺愨晲鈺?
   app.get("/api/v1/metrics", async (req, reply) => {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
@@ -185,24 +206,24 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
-  // ═══ Admin: 通过ID获取用户 ═══
+  // 鈺愨晲鈺?Admin: 閫氳繃ID鑾峰彇鐢ㄦ埛 鈺愨晲鈺?
   app.get("/api/v1/admin/users/:id", async (req, reply) => {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
     const { id } = req.params as any;
-    if (typeof id !== "string" || id.length > 16) return reply.status(400).send({ ok: false, error: "无效的用户ID" });
+    if (typeof id !== "string" || id.length > 16) return reply.status(400).send({ ok: false, error: "鏃犳晥鐨勭敤鎴稩D" });
     try {
       const rows = await db.select({
         id: users.id, globalName: users.globalName, appNames: users.appNames,
         permission: users.permission, online: users.online,
         createdAt: users.createdAt, lastOnlineAt: users.lastOnlineAt,
       }).from(users).where(eq(users.id, id)).limit(1);
-      if (!rows.length) return reply.status(404).send({ ok: false, error: "用户不存在" });
+      if (!rows.length) return reply.status(404).send({ ok: false, error: "鐢ㄦ埛涓嶅瓨鍦? });
       return reply.send({ ok: true, user: rows[0] });
     } catch (e: any) { log.error({ err: e }, "admin getUser failed"); return reply.status(500).send({ ok: false, error: "internal error" }); }
   });
 
-  // ═══ Admin: 用户列表 ═══
+  // 鈺愨晲鈺?Admin: 鐢ㄦ埛鍒楄〃 鈺愨晲鈺?
   app.get("/api/v1/admin/users", async (req, reply) => {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
@@ -216,7 +237,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     } catch (e: any) { log.error({ err: e }, "admin listUsers failed"); return reply.status(500).send({ ok: false, error: "internal error" }); }
   });
 
-  // ═══ Admin: Token 列表 ═══
+  // 鈺愨晲鈺?Admin: Token 鍒楄〃 鈺愨晲鈺?
   app.get("/api/v1/admin/tokens", async (req, reply) => {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
@@ -230,25 +251,25 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     } catch (e: any) { log.error({ err: e }, "admin listTokens failed"); return reply.status(500).send({ ok: false, error: "internal error" }); }
   });
 
-  // ═══ Admin: 删除用户 ═══
+  // 鈺愨晲鈺?Admin: 鍒犻櫎鐢ㄦ埛 鈺愨晲鈺?
   app.delete("/api/v1/admin/users/:id", async (req, reply) => {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
     const { id } = req.params as any;
     if (typeof id !== "string" || id.length > 16) return reply.status(400).send({ ok: false, error: "invalid id" });
-    if (id === admin.userId) return reply.status(400).send({ ok: false, error: "不能删除自己" });
+    if (id === admin.userId) return reply.status(400).send({ ok: false, error: "涓嶈兘鍒犻櫎鑷繁" });
     try {
       const [u] = await db.select({ id: users.id, permission: users.permission }).from(users).where(eq(users.id, id)).limit(1);
-      if (!u) return reply.status(404).send({ ok: false, error: "用户不存在" });
+      if (!u) return reply.status(404).send({ ok: false, error: "鐢ㄦ埛涓嶅瓨鍦? });
       if (u.permission === "admin" && await isLastAdmin(id))
-        return reply.status(400).send({ ok: false, error: "不能删除最后一个管理员" });
+        return reply.status(400).send({ ok: false, error: "涓嶈兘鍒犻櫎鏈€鍚庝竴涓鐞嗗憳" });
       await deleteUser(id);
       invalidateTokenCache();
       return reply.send({ ok: true, deleted: id });
     } catch (e: any) { log.error({ err: e }, "admin deleteUser failed"); return reply.status(500).send({ ok: false, error: "internal error" }); }
   });
 
-  // ═══ Admin: 撤销 Token ═══
+  // 鈺愨晲鈺?Admin: 鎾ら攢 Token 鈺愨晲鈺?
   app.delete("/api/v1/admin/tokens/:id", async (req, reply) => {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
@@ -256,27 +277,27 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     if (typeof id !== "string" || id.length > 16) return reply.status(400).send({ ok: false, error: "invalid id" });
     try {
       const [t] = await db.select({ id: tokens.id }).from(tokens).where(eq(tokens.id, id)).limit(1);
-      if (!t) return reply.status(404).send({ ok: false, error: "token 不存在" });
+      if (!t) return reply.status(404).send({ ok: false, error: "token 涓嶅瓨鍦? });
       await revokeToken(id);
       invalidateTokenCache();
       return reply.send({ ok: true, revoked: id });
     } catch (e: any) { log.error({ err: e }, "admin revokeToken failed"); return reply.status(500).send({ ok: false, error: "internal error" }); }
   });
 
-  // ═══ Admin: 修改用户权限 ═══
+  // 鈺愨晲鈺?Admin: 淇敼鐢ㄦ埛鏉冮檺 鈺愨晲鈺?
   app.put("/api/v1/admin/users/:id/permission", async (req, reply) => {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
     const { id } = req.params as any;
     if (typeof id !== "string" || id.length > 16) return reply.status(400).send({ ok: false, error: "invalid id" });
     const { permission } = req.body as any;
-    if (permission !== "admin" && permission !== "user") return reply.status(400).send({ ok: false, error: "permission 必须是 admin 或 user" });
-    if (id === admin.userId && permission !== "admin") return reply.status(400).send({ ok: false, error: "不能降低自己的权限" });
+    if (permission !== "admin" && permission !== "user") return reply.status(400).send({ ok: false, error: "permission 蹇呴』鏄?admin 鎴?user" });
+    if (id === admin.userId && permission !== "admin") return reply.status(400).send({ ok: false, error: "涓嶈兘闄嶄綆鑷繁鐨勬潈闄? });
     try {
       const [u] = await db.select({ id: users.id, permission: users.permission }).from(users).where(eq(users.id, id)).limit(1);
-      if (!u) return reply.status(404).send({ ok: false, error: "用户不存在" });
+      if (!u) return reply.status(404).send({ ok: false, error: "鐢ㄦ埛涓嶅瓨鍦? });
       if (u.permission === "admin" && permission !== "admin" && await isLastAdmin(id))
-        return reply.status(400).send({ ok: false, error: "不能降低最后一个管理员的权限" });
+        return reply.status(400).send({ ok: false, error: "涓嶈兘闄嶄綆鏈€鍚庝竴涓鐞嗗憳鐨勬潈闄? });
       await updateUserPermission(id, permission);
       invalidateTokenCache();
       return reply.send({ ok: true, userId: id, permission });
