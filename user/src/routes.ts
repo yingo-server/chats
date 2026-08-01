@@ -103,7 +103,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const auth = req.headers.authorization;
     if (!auth?.startsWith("Bearer ")) return reply.status(401).send({ ok: false, error: "missing token" });
     const token = auth.slice(7);
-    if (token.length < 32 || token.length > 128) return reply.status(401).send({ ok: false, error: "invalid token format" });
     const payload = await verifyToken(token);
     if (!payload) return reply.status(401).send({ ok: false, error: "invalid token" });
     return reply.send({ ok: true, user_id: payload.userId, scopes: payload.scopes, permission: payload.permission });
