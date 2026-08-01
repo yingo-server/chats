@@ -22,6 +22,12 @@ export { redis };
 
 const FIVE_MIN = 300_000;
 
+// 过滤敏感字段，不暴露给前端
+function sanitizeMessage(msg: any) {
+  const { senderIp, ...rest } = msg;
+  return rest;
+}
+
 function genId(): string {
   const ts = Date.now().toString(); // 13 位毫秒时间戳，2286 年前不会回绕
   const rand = (randomBytes(2).readUIntBE(0, 2) % 1000).toString().padStart(3, "0");
@@ -218,7 +224,7 @@ export async function getMessages(roomId: string, userId: string, cursor?: strin
 
   // 合并排序
   const all = [...hotCursorFiltered, ...coldMsgs].sort((a, b) => b.id.localeCompare(a.id));
-  const items = all.slice(0, safeLimit);
+  const items = all.slice(0, safeLimit).map(sanitizeMessage);
   return {
     items,
     cursor: items.length === safeLimit ? items[items.length - 1]?.id : undefined,
@@ -277,6 +283,7 @@ export async function createDirectRoom(a: string, b: string) {
     }
     await new Promise(r => setTimeout(r, 200));
   }
+  if (!locked) throw new Error("concurrent conflict, please retry");
   try {
     const existing = await findDirectRoom(u1, u2);
     if (existing) {
@@ -367,7 +374,7 @@ export async function getMessagesAdmin(roomId: string, cursor?: string, limit = 
   }
 
   const all = [...hotCursorFiltered, ...coldMsgs].sort((a, b) => b.id.localeCompare(a.id));
-  const items = all.slice(0, safeLimit);
+  const items = all.slice(0, safeLimit).map(sanitizeMessage);
   return {
     items,
     cursor: items.length === safeLimit ? items[items.length - 1]?.id : undefined,

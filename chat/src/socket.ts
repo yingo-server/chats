@@ -1,9 +1,14 @@
 import type { Server, Socket } from "socket.io";
 import { sendMessage, isRoomMember } from "./core.js";
-import { verifyToken } from "./api.js";
+import { verifyToken, checkRateLimit } from "./api.js";
 import { createClient } from "./redis.js";
 
 import pino from "pino";
+
+function sanitizeMessage(msg: any) {
+  const { senderIp, ...rest } = msg;
+  return rest;
+}
 
 const log = pino({ level: process.env.LOG_LEVEL || "info", name: "chat-socket" });
 const redis = createClient();
@@ -53,7 +58,7 @@ export function setupSocketHandlers(io: Server): void {
     const uid = socket.data.userId as string;
     refreshOnline(uid);
     trackSocket(uid, socket.id);
-    io.emit("v1:online", { userId: uid, online: true });
+    // 不再 io.emit — 不向所有客户端广播在线状态
 
     socket.on("v1:join", async ({ roomId }) => {
       refreshOnline(uid);
@@ -62,6 +67,8 @@ export function setupSocketHandlers(io: Server): void {
         const member = await isRoomMember(roomId, uid);
         if (!member) return socket.emit("v1:error", { message: "not a room member" });
         socket.join(roomId);
+        // 加入房间后，向该房间所有成员广播此用户在线
+        io.in(roomId).emit("v1:online", { userId: uid, online: true });
       } catch (e: any) {
         log.warn({ uid, roomId, err: e.message }, "v1:join failed");
         socket.emit("v1:error", { message: "join failed" });
@@ -72,6 +79,8 @@ export function setupSocketHandlers(io: Server): void {
       refreshOnline(uid);
       if (!roomId || typeof roomId !== "string") return;
       socket.leave(roomId);
+      // 离开房间后，向该房间所有成员广播此用户离线
+      io.in(roomId).emit("v1:online", { userId: uid, online: false });
     });
 
     socket.on("v1:message", async ({ roomId, content, type }, cb) => {
@@ -79,10 +88,14 @@ export function setupSocketHandlers(io: Server): void {
         refreshOnline(uid);
         if (!roomId || typeof roomId !== "string") throw new Error("invalid roomId");
         if (!content || typeof content !== "string") throw new Error("content required");
+        // 速率限制: 60条/10秒
+        const allowed = await checkRateLimit(`ratelimit:msg:${uid}`, 60, 10);
+        if (!allowed) throw new Error("rate limit exceeded, slow down");
         const ip = socket.handshake.address;
         const msg = await sendMessage(roomId, uid, content, type || "text", ip);
-        io.to(roomId).emit("v1:message", msg);
-        if (cb) cb({ ok: true, msg });
+        const safeMsg = sanitizeMessage(msg);
+        io.to(roomId).emit("v1:message", safeMsg);
+        if (cb) cb({ ok: true, msg: safeMsg });
       } catch (e: any) {
         const errMsg = e.message || "internal error";
         if (cb) cb({ ok: false, error: errMsg });
@@ -91,10 +104,19 @@ export function setupSocketHandlers(io: Server): void {
     });
 
     socket.on("disconnect", () => {
+      // 收集 disconnect 前的房间列表（disconnect 后 socket.rooms 已清空）
+      const memberRooms: string[] = [];
+      for (const room of socket.rooms) {
+        if (room !== socket.id) memberRooms.push(room);
+      }
       untrackSocket(uid, socket.id);
       if (!isUserOnline(uid)) {
         redis.del(`online:${uid}`).catch(() => {});
-        io.emit("v1:online", { userId: uid, online: false });
+      }
+      // 向该用户所有房间的成员广播离线
+      const payload = { userId: uid, online: false };
+      for (const roomKey of memberRooms) {
+        io.in(roomKey).emit("v1:online", payload);
       }
     });
   });

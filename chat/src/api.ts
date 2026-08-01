@@ -1,28 +1,52 @@
 import pino from "pino";
 import type { AuthResult } from "./types.js";
+import { createClient } from "./redis.js";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info", name: "chat-api" });
 
 const USER_SVC = (process.env.USER_SERVICE_URL || "http://localhost:9000").trim().replace(/\/+$/, "");
-const INTERNAL_KEY = process.env.INTERNAL_API_KEY || "dev-internal-key-change-in-production";
+const INTERNAL_KEY = process.env.INTERNAL_API_KEY;
+if (!INTERNAL_KEY) throw new Error("INTERNAL_API_KEY env var is required");
 const CACHE_TTL = 300_000;
 
-const isHttps = USER_SVC.startsWith("https");
+const redis = createClient();
 
-let insecureDispatcher: any = undefined;
-if (isHttps) {
+// ═══ 滑动窗口速率限制（基于 Redis INCR）═══
+// 返回 true = 允许, false = 超限
+export async function checkRateLimit(key: string, limit: number, windowSec: number): Promise<boolean> {
   try {
-    const { Agent } = await import("undici");
-    insecureDispatcher = new Agent({ connect: { rejectUnauthorized: false } });
-    log.info("Loaded undici Agent for insecure HTTPS");
-  } catch (e: any) {
-    log.warn({ err: e.message }, "Failed to load undici Agent, falling back to default fetch");
+    const now = Date.now();
+    const windowKey = `${key}:${Math.floor(now / 1000 / windowSec)}`;
+    const prevKey = `${key}:${Math.floor(now / 1000 / windowSec) - 1}`;
+
+    const [currCount, prevCount] = await Promise.all([
+      redis.get(windowKey),
+      redis.get(prevKey),
+    ]);
+
+    const curr = parseInt(currCount || "0", 10);
+    const prev = parseInt(prevCount || "0", 10);
+
+    // 加权：上一个窗口的剩余比例 + 当前窗口计数
+    const elapsed = (now / 1000) % windowSec;
+    const weight = 1 - elapsed / windowSec;
+    const total = prev * weight + curr;
+
+    if (total >= limit) return false;
+
+    const pipe = redis.pipeline();
+    pipe.incr(windowKey);
+    pipe.expire(windowKey, windowSec * 2);
+    await pipe.exec();
+    return true;
+  } catch {
+    // Redis 不可用时放行
+    return true;
   }
 }
 
 export async function secureFetch(url: string, init?: RequestInit): Promise<Response> {
-  if (!isHttps || !insecureDispatcher) return fetch(url, init);
-  return fetch(url, { ...init, dispatcher: insecureDispatcher } as any);
+  return fetch(url, init);
 }
 
 // ═══ verifyToken: 带重试 + 单飞（同一 token 并发只查一次，避免击穿 user 服务）═══
@@ -98,4 +122,28 @@ export async function fetchUser(userId: string): Promise<any> {
     }
   }
   return null;
+}
+
+// ═══ searchUsers: 代理到 user service ═══
+export async function searchUsers(token: string, query: string): Promise<any> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      const r = await secureFetch(`${USER_SVC}/api/v1/users/search?query=${encodeURIComponent(query)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      } as any);
+      clearTimeout(timeout);
+      return await r.json();
+    } catch (e: any) {
+      if (attempt === 0) {
+        log.warn({ attempt, err: e.message }, "searchUsers failed, retrying");
+        await new Promise(r => setTimeout(r, 100));
+      } else {
+        log.error({ err: e.message }, "searchUsers failed after retry");
+      }
+    }
+  }
+  return { ok: false, error: "user service unreachable" };
 }
