@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { eq, sql, and } from "drizzle-orm";
 import { sendMessage, getMessages, getMessagesAdmin, createRoom, deleteRoom, getUserRooms, getRoomDetail, getRoomMembers, isRoomMember, createDirectRoom, db } from "./core.js";
-import { verifyToken, fetchUser, secureFetch } from "./api.js";
+import { verifyToken, fetchUser, secureFetch, searchUsers } from "./api.js";
 import { createClient } from "./redis.js";
 import { rooms, roomMembers, coldMessages } from "./schema.js";
 import { randomBytes } from "node:crypto";
@@ -35,7 +35,7 @@ async function requireAdmin(req: any) {
 }
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
-  // ═══ 登录代理（转发到 User Service）═══
+  // 鈺愨晲鈺?鐧诲綍浠ｇ悊锛堣浆鍙戝埌 User Service锛夆晲鈺愨晲
   app.post("/api/v1/login", async (req, reply) => {
     try {
       const body = req.body as any;
@@ -52,7 +52,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     } catch (e: any) { return reply.status(502).send({ ok: false, error: "user service unreachable" }); }
   });
 
-  // ═══ REST 房间 ═══
+  // 鈺愨晲鈺?REST 鎴块棿 鈺愨晲鈺?
   app.post("/api/v1/rooms/direct", async (req, reply) => {
     const t = req.headers.authorization?.slice(7);
     const u = await verifyToken(t || "");
@@ -97,7 +97,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // ═══ 获取当前用户的房间列表 ═══
+  // 鈺愨晲鈺?鑾峰彇褰撳墠鐢ㄦ埛鐨勬埧闂村垪琛?鈺愨晲鈺?
   app.get("/api/v1/rooms", async (req, reply) => {
     const t = req.headers.authorization?.slice(7);
     const u = await verifyToken(t || "");
@@ -110,7 +110,18 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // ═══ 获取单个房间详情 ═══
+  // 鈺愨晲鈺?鎼滅储鐢ㄦ埛锛堜唬鐞嗗埌 User Service锛夆晲鈺愨晲
+  app.get("/api/v1/users/search", async (req, reply) => {
+    const t = req.headers.authorization?.slice(7);
+    const u = await verifyToken(t || "");
+    if (!u) return reply.status(401).send({ ok: false, error: "unauthorized" });
+    const query = String((req.query as any).query || "").trim();
+    if (query.length < 1) return reply.send({ ok: true, users: [] });
+    const result = await searchUsers(t!, query);
+    return reply.send(result);
+  });
+
+  // 鈺愨晲鈺?鑾峰彇鍗曚釜鎴块棿璇︽儏 鈺愨晲鈺?
   app.get("/api/v1/rooms/:id", async (req, reply) => {
     const t = req.headers.authorization?.slice(7);
     const u = await verifyToken(t || "");
@@ -127,7 +138,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // ═══ 获取房间成员 ═══
+  // 鈺愨晲鈺?鑾峰彇鎴块棿鎴愬憳 鈺愨晲鈺?
   app.get("/api/v1/rooms/:id/members", async (req, reply) => {
     const t = req.headers.authorization?.slice(7);
     const u = await verifyToken(t || "");
@@ -145,10 +156,10 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // ═══ 健康检查 (liveness) ═══
+  // 鈺愨晲鈺?鍋ュ悍妫€鏌?(liveness) 鈺愨晲鈺?
   app.get("/api/v1/health", async () => ({ ok: true, service: "chat-v1", uptime: process.uptime() }));
 
-  // ═══ 就绪检查 (readiness) ═══
+  // 鈺愨晲鈺?灏辩华妫€鏌?(readiness) 鈺愨晲鈺?
   app.get("/api/v1/ready", async () => {
     let dbOk = false; let redisOk = false;
     try { await db.execute(sql`SELECT 1`); dbOk = true; } catch {}
@@ -156,14 +167,14 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return { ok: dbOk && redisOk, service: "chat-v1", db: dbOk ? "ok" : "error", redis: redisOk ? "ok" : "error" };
   });
 
-  // ═══ Metrics ═══
+  // 鈺愨晲鈺?Metrics 鈺愨晲鈺?
   app.get("/api/v1/metrics", async () => ({
     uptime: process.uptime(),
     memory: process.memoryUsage(),
     pid: process.pid,
   }));
 
-  // ═══ Admin: 房间列表 ═══
+  // 鈺愨晲鈺?Admin: 鎴块棿鍒楄〃 鈺愨晲鈺?
   app.get("/api/v1/admin/rooms", async (req, reply) => {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
@@ -173,7 +184,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
   });
 
-  // ═══ Admin: 房间成员 ═══
+  // 鈺愨晲鈺?Admin: 鎴块棿鎴愬憳 鈺愨晲鈺?
   app.get("/api/v1/admin/rooms/:id/members", async (req, reply) => {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
@@ -184,7 +195,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
   });
 
-  // ═══ Admin: 消息统计 ═══
+  // 鈺愨晲鈺?Admin: 娑堟伅缁熻 鈺愨晲鈺?
   app.get("/api/v1/admin/stats", async (req, reply) => {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
@@ -211,7 +222,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
   });
 
-  // ═══ Admin: 创建私聊 (指定双方用户, 管理员不参与) ═══
+  // 鈺愨晲鈺?Admin: 鍒涘缓绉佽亰 (鎸囧畾鍙屾柟鐢ㄦ埛, 绠＄悊鍛樹笉鍙備笌) 鈺愨晲鈺?
   app.post("/api/v1/admin/rooms/direct", async (req, reply) => {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
@@ -220,13 +231,13 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(400).send({ ok: false, error: "userA and userB required" });
     if (userA === userB) return reply.status(400).send({ ok: false, error: "cannot chat with self" });
     try {
-      // 复用幂等创建逻辑：同一对用户只返回一个房间
+      // 澶嶇敤骞傜瓑鍒涘缓閫昏緫锛氬悓涓€瀵圭敤鎴峰彧杩斿洖涓€涓埧闂?
       const room = await createDirectRoom(userA, userB);
       return reply.status(201).send({ ok: true, room });
     } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
   });
 
-  // ═══ Admin: 查看房间消息 (绕过成员检查) ═══
+  // 鈺愨晲鈺?Admin: 鏌ョ湅鎴块棿娑堟伅 (缁曡繃鎴愬憳妫€鏌? 鈺愨晲鈺?
   app.get("/api/v1/admin/rooms/:id/messages", async (req, reply) => {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
@@ -240,7 +251,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
   });
 
-  // ═══ Admin: 代理发送消息 (绕过成员检查) ═══
+  // 鈺愨晲鈺?Admin: 浠ｇ悊鍙戦€佹秷鎭?(缁曡繃鎴愬憳妫€鏌? 鈺愨晲鈺?
   app.post("/api/v1/admin/rooms/:id/messages", async (req, reply) => {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
@@ -255,7 +266,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
   });
 
-  // ═══ Admin: 创建群组 (指定创建者, 管理员不参与) ═══
+  // 鈺愨晲鈺?Admin: 鍒涘缓缇ょ粍 (鎸囧畾鍒涘缓鑰? 绠＄悊鍛樹笉鍙備笌) 鈺愨晲鈺?
   app.post("/api/v1/admin/rooms/group", async (req, reply) => {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
@@ -268,7 +279,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
   });
 
-  // ═══ Admin: 添加房间成员 ═══
+  // 鈺愨晲鈺?Admin: 娣诲姞鎴块棿鎴愬憳 鈺愨晲鈺?
   app.post("/api/v1/admin/rooms/:id/members", async (req, reply) => {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
@@ -282,7 +293,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
   });
 
-  // ═══ Admin: 移除房间成员 ═══
+  // 鈺愨晲鈺?Admin: 绉婚櫎鎴块棿鎴愬憳 鈺愨晲鈺?
   app.delete("/api/v1/admin/rooms/:roomId/members/:userId", async (req, reply) => {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
@@ -293,7 +304,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
   });
 
-  // ═══ 用户发送消息 ═══
+  // 鈺愨晲鈺?鐢ㄦ埛鍙戦€佹秷鎭?鈺愨晲鈺?
   app.post("/api/v1/rooms/:id/messages", async (req, reply) => {
     const t = req.headers.authorization?.slice(7);
     const u = await verifyToken(t || "");
@@ -311,7 +322,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // ═══ Admin: 删除房间 ═══
+  // 鈺愨晲鈺?Admin: 鍒犻櫎鎴块棿 鈺愨晲鈺?
   app.delete("/api/v1/admin/rooms/:id", async (req, reply) => {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
@@ -319,7 +330,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     if (typeof id !== "string" || id.length > 16) return reply.status(400).send({ ok: false, error: "invalid id" });
     try {
       const [r] = await db.select({ id: rooms.id }).from(rooms).where(eq(rooms.id, id)).limit(1);
-      if (!r) return reply.status(404).send({ ok: false, error: "房间不存在" });
+      if (!r) return reply.status(404).send({ ok: false, error: "鎴块棿涓嶅瓨鍦? });
       await deleteRoom(id);
       return reply.send({ ok: true, deleted: id });
     } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
