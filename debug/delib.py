@@ -195,23 +195,32 @@ def reset_db():
     chat_sql = "TRUNCATE rooms, room_members, cold_messages CASCADE;"
     user_sql = "TRUNCATE users, tokens, api_keys CASCADE;"
     import subprocess
+    # Detect container names (docker-compose vs legacy)
+    def find_container(keyword):
+        r = subprocess.run(["docker", "ps", "--format", "{{.Names}}"], capture_output=True, text=True, timeout=10)
+        for name in r.stdout.splitlines():
+            if keyword in name:
+                return name
+        return None
+    user_db = find_container("user-db") or "local-pg"
+    chat_db = find_container("chat-db") or "local-pg"
+    redis_c = find_container("chat-cache") or find_container("redis") or "local-redis"
     try:
-        subprocess.run(["docker", "exec", "local-pg", "psql", "-U", "postgres", "-d", "cold_user", "-c", user_sql],
+        subprocess.run(["docker", "exec", user_db, "psql", "-U", "yingo", "-d", "cold_user", "-c", user_sql],
                        capture_output=True, text=True, timeout=15, check=True)
-        log("  user-db 已重置")
+        log(f"  user-db 已重置 ({user_db})")
     except Exception as e:
         log(f"  user-db 重置失败: {e}")
     try:
-        subprocess.run(["docker", "exec", "local-pg", "psql", "-U", "postgres", "-d", "cold_chat", "-c", chat_sql],
+        subprocess.run(["docker", "exec", chat_db, "psql", "-U", "yingo", "-d", "cold_chat", "-c", chat_sql],
                        capture_output=True, text=True, timeout=15, check=True)
-        log("  chat-db 已重置")
+        log(f"  chat-db 已重置 ({chat_db})")
     except Exception as e:
         log(f"  chat-db 重置失败: {e}")
-    # 清空 Redis 热区，防止旧热消息混入新测试
     try:
-        subprocess.run(["docker", "exec", "local-redis", "redis-cli", "FLUSHDB"],
+        subprocess.run(["docker", "exec", redis_c, "redis-cli", "FLUSHDB"],
                        capture_output=True, text=True, timeout=15, check=True)
-        log("  redis 热区已清空")
+        log(f"  redis 热区已清空 ({redis_c})")
     except Exception as e:
         log(f"  redis 清空失败: {e}")
 
