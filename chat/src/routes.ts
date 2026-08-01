@@ -110,7 +110,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // 鈺愨晲鈺?鎼滅储鐢ㄦ埛锛堜唬鐞嗗埌 User Service锛夆晲鈺愨晲
+  // Search users (proxy to User Service)
   app.get("/api/v1/users/search", async (req, reply) => {
     const t = req.headers.authorization?.slice(7);
     const u = await verifyToken(t || "");
