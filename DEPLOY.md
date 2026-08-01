@@ -27,8 +27,8 @@
 
 | 鏈嶅姟 | 闀滃儚 | 绔彛 | 渚濊禆 |
 |------|------|------|------|
-| user-service | `ghcr.io/yingo-server/yingo-user:v6.1-stable-law` | 9000 | user-db |
-| chat-service | `ghcr.io/yingo-server/yingo-chat:v6.1-stable-law` | 9001 | chat-db, chat-cache, user-service |
+| user-service | `ghcr.io/yingo-server/yingo-user:v6.2-stable-law` | 9000 | user-db |
+| chat-service | `ghcr.io/yingo-server/yingo-chat:v6.2-stable-law` | 9001 | chat-db, chat-cache, user-service |
 | user-db | `postgres:16-alpine` | 5432 | - |
 | chat-db | `postgres:16-alpine` | 5432 | - |
 | chat-cache | `redis:7-alpine` | 6379 | - |
@@ -214,7 +214,7 @@ docker run -d --name user-service --network yingo-net \
   -e REDIS_URL="redis://chat-cache:6379" \
   -v /etc/ssl/yingo:/etc/ssl/yingo:ro \
   --restart unless-stopped \
-  ghcr.io/yingo-server/yingo-user:v6.1-stable-law
+  ghcr.io/yingo-server/yingo-user:v6.2-stable-law
 ```
 
 ### 5. 鍚姩 Chat Service
@@ -235,7 +235,7 @@ docker run -d --name chat-service --network yingo-net \
   -e TOKEN_SECRET="dev-token-secret-change-in-production" \
   -v /etc/ssl/yingo:/etc/ssl/yingo:ro \
   --restart unless-stopped \
-  ghcr.io/yingo-server/yingo-chat:v6.1-stable-law
+  ghcr.io/yingo-server/yingo-chat:v6.2-stable-law
 ```
 
 ### 6. 楠岃瘉
@@ -326,7 +326,7 @@ docker run -d --name user-service --network yingo-net \
   -e INTERNAL_API_KEY="<INTERNAL_API_KEY>" \
   -v <SSL_CERT_DIR>:/etc/ssl/yingo:ro \
   --restart unless-stopped \
-  ghcr.io/yingo-server/yingo-user:v6.1-stable-law
+  ghcr.io/yingo-server/yingo-user:v6.2-stable-law
 ```
 
 ### 7. 鍚姩 Chat Service
@@ -347,7 +347,7 @@ docker run -d --name chat-service --network yingo-net \
   -e TOKEN_SECRET="<TOKEN_SECRET>" \
   -v <SSL_CERT_DIR>:/etc/ssl/yingo:ro \
   --restart unless-stopped \
-  ghcr.io/yingo-server/yingo-chat:v6.1-stable-law
+  ghcr.io/yingo-server/yingo-chat:v6.2-stable-law
 ```
 
 ### 8. 鍓嶇閮ㄧ讲
@@ -450,7 +450,7 @@ docker rm user-service chat-service
 #!/bin/bash
 set -e
 
-TAG=${1:-v6.1-stable-law}
+TAG=${1:-v6.2-stable-law}
 
 docker login ghcr.io -u yingo-server -g <GITHUB_PAT>
 docker pull ghcr.io/yingo-server/yingo-user:$TAG
