@@ -19,6 +19,7 @@ export const users = pgTable("users", {
 export const tokens = pgTable("tokens", {
   id: varchar("id", { length: 16 }).primaryKey(),
   userId: varchar("user_id", { length: 16 }).notNull().references(() => users.id),
+  tokenLookup: varchar("token_lookup", { length: 64 }).notNull().unique(),  // SHA-256(rawToken) for indexed lookup
   shortHash: varchar("short_hash", { length: 255 }).notNull(),  // HMAC(secret + salt + shortToken)
   longHash: varchar("long_hash", { length: 255 }).notNull(),    // HMAC(secret + salt + longToken)
   tokenSalt: varchar("token_salt", { length: 32 }).notNull(),
@@ -33,6 +34,7 @@ export const tokens = pgTable("tokens", {
   expiresIdx: index("idx_tokens_long_expires").on(t.longExpires),
   shortExpiresIdx: index("idx_tokens_short_expires").on(t.shortExpires),
   revokedIdx: index("idx_tokens_revoked_at").on(t.revokedAt),
+  lookupIdx: index("idx_tokens_lookup").on(t.tokenLookup),
 }));
 
 /** API Key — 用户自建128位，前缀mk-/rk- */

@@ -142,6 +142,7 @@ export async function loginUser(username: string, password: string) {
   const tokenSalt = randomBytes(16).toString("hex");
   const shortHash = tokenSalt + ":" + createHmac("sha256", TOKEN_SECRET).update(tokenSalt + shortToken).digest("hex");
   const longHash = tokenSalt + ":" + createHmac("sha256", TOKEN_SECRET).update(tokenSalt + longToken).digest("hex");
+  const lookupLong = createHash("sha256").update(longToken).digest("hex");
   const now = Date.now();
 
   // ID 碰撞自动重试（最多3次）
@@ -150,6 +151,7 @@ export async function loginUser(username: string, password: string) {
     try {
       await db.insert(tokens).values({
         id: tid, userId: user.id,
+        tokenLookup: lookupLong,
         shortHash, longHash, tokenSalt,
         shortExpires: now + 3600_000,    // 1h
         longExpires: now + 2592000_000,  // 30d
@@ -188,45 +190,54 @@ export async function verifyToken(tokenStr: string): Promise<{ userId: string; s
   if (cached && Date.now() - cached.ts < TOKEN_CACHE_TTL) return cached.result;
 
   const now = Date.now();
-  // 查出所有未撤销、任一有效期未过的 token，逐个 HMAC 验证
-  let candidates: any[] = [];
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      candidates = await db.select().from(tokens).innerJoin(users, eq(tokens.userId, users.id)).where(
-        and(isNull(tokens.revokedAt), sql`(${tokens.longExpires} > ${now} OR ${tokens.shortExpires} > ${now})`)
-      ).limit(10000);
-      break;
-    } catch (e: any) {
-      log.warn({ attempt, err: e.message }, "verifyToken query failed, retrying");
-      if (attempt === 0) await new Promise(r => setTimeout(r, 100));
-    }
+  const lookupHash = createHash("sha256").update(tokenStr).digest("hex");
+
+  // 通过 tokenLookup 索引直接定位，O(1) 查找
+  let candidate: any = null;
+  try {
+    const rows = await db.select().from(tokens).innerJoin(users, eq(tokens.userId, users.id))
+      .where(eq(tokens.tokenLookup, lookupHash))
+      .limit(1);
+    candidate = rows[0] || null;
+  } catch (e: any) {
+    log.warn({ err: e.message }, "verifyToken lookup failed");
+    return null;
   }
 
-  for (const row of candidates) {
-    const t = row.tokens;
-    const u = row.users;
-    const computed = createHmac("sha256", TOKEN_SECRET).update(t.tokenSalt + tokenStr).digest("hex");
-    const storedShort = t.shortHash.includes(":") ? t.shortHash.split(":")[1] : t.shortHash;
-    const storedLong = t.longHash.includes(":") ? t.longHash.split(":")[1] : t.longHash;
-    // short token 只能在其 1h 有效期内通过；long token 在 30d 有效期内通过
-    const shortValid = computed === storedShort && t.shortExpires > now;
-    const longValid = computed === storedLong && t.longExpires > now;
-    if (shortValid || longValid) {
-      db.update(tokens).set({ lastUsedAt: Date.now() }).where(eq(tokens.id, t.id)).catch((e) => { log.warn({ err: e }, "Failed to update lastUsedAt"); });
-      const result = { userId: t.userId, scopes: t.scopes.trim().split(/\s+/).filter(Boolean), permission: u.permission };
-      tokenVerifyCache.set(tokenStr, { result, ts: Date.now() });
-      return result;
-    }
+  if (!candidate) {
+    tokenVerifyCache.set(tokenStr, { result: null, ts: Date.now() - (TOKEN_CACHE_TTL - TOKEN_CACHE_FAIL_TTL) });
+    return null;
+  }
+
+  const t = candidate.tokens;
+  const u = candidate.users;
+
+  if (t.revokedAt) {
+    tokenVerifyCache.set(tokenStr, { result: null, ts: Date.now() - (TOKEN_CACHE_TTL - TOKEN_CACHE_FAIL_TTL) });
+    return null;
+  }
+
+  const computed = createHmac("sha256", TOKEN_SECRET).update(t.tokenSalt + tokenStr).digest("hex");
+  const storedShort = t.shortHash.includes(":") ? t.shortHash.split(":")[1] : t.shortHash;
+  const storedLong = t.longHash.includes(":") ? t.longHash.split(":")[1] : t.longHash;
+  let shortValid = false;
+  let longValid = false;
+  try {
+    shortValid = t.shortExpires > now && timingSafeEqual(Buffer.from(storedShort, "hex"), Buffer.from(computed, "hex"));
+  } catch { /* length mismatch */ }
+  try {
+    longValid = t.longExpires > now && timingSafeEqual(Buffer.from(storedLong, "hex"), Buffer.from(computed, "hex"));
+  } catch { /* length mismatch */ }
+
+  if (shortValid || longValid) {
+    db.update(tokens).set({ lastUsedAt: Date.now() }).where(eq(tokens.id, t.id)).catch((e) => { log.warn({ err: e }, "Failed to update lastUsedAt"); });
+    const result = { userId: t.userId, scopes: t.scopes.trim().split(/\s+/).filter(Boolean), permission: u.permission };
+    tokenVerifyCache.set(tokenStr, { result, ts: Date.now() });
+    return result;
   }
 
   // 失败结果只缓存 1 秒，避免 DB 瞬时抖动造成 10 秒雪崩
   tokenVerifyCache.set(tokenStr, { result: null, ts: Date.now() - (TOKEN_CACHE_TTL - TOKEN_CACHE_FAIL_TTL) });
-  if (tokenVerifyCache.size > TOKEN_CACHE_MAX) {
-    const nowTs = Date.now();
-    for (const [key, v] of tokenVerifyCache) {
-      if (nowTs - v.ts > TOKEN_CACHE_TTL) tokenVerifyCache.delete(key);
-    }
-  }
   return null;
 }
 

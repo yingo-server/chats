@@ -27,19 +27,46 @@ class ApiClient {
       headers["Authorization"] = `Bearer ${token}`
     }
 
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined,
-    })
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 10000)
+
+    let res: Response
+    try {
+      res = await fetch(`${this.baseUrl}${path}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+        signal: controller.signal,
+      })
+    } catch (e) {
+      clearTimeout(timer)
+      if (e instanceof DOMException && e.name === "AbortError") {
+        throw new Error("request timeout")
+      }
+      throw e
+    }
+    clearTimeout(timer)
 
     if (res.status === 401) {
       localStorage.removeItem("yingo_auth")
-      window.location.href = "/login"
+      window.location.replace("/login")
       throw new Error("unauthorized")
     }
 
+    const contentType = res.headers.get("content-type") || ""
+    if (!contentType.includes("application/json")) {
+      if (!res.ok) {
+        throw new Error(`http ${res.status}: ${res.statusText}`)
+      }
+      return {} as T
+    }
+
     const data = await res.json()
+
+    if (!res.ok) {
+      throw new Error(data?.error || `http ${res.status}`)
+    }
+
     return data as T
   }
 

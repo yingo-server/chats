@@ -39,9 +39,10 @@ export async function checkRateLimit(key: string, limit: number, windowSec: numb
     pipe.expire(windowKey, windowSec * 2);
     await pipe.exec();
     return true;
-  } catch {
-    // Redis 不可用时放行
-    return true;
+  } catch (e) {
+    // Redis 不可用时拒绝请求（fail-closed）
+    log.warn({ err: e }, "Rate limit check failed, denying request");
+    return false;
   }
 }
 

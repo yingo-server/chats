@@ -37,7 +37,7 @@ export const useAuthStore = create<AuthState>()(
           permission: res.permission,
           isAuthenticated: true,
         })
-        setTimeout(() => get().fetchMe(), 0)
+        get().fetchMe()
       },
 
       register: async (username, password) => {
@@ -52,7 +52,7 @@ export const useAuthStore = create<AuthState>()(
           permission: loginRes.permission,
           isAuthenticated: true,
         })
-        setTimeout(() => get().fetchMe(), 0)
+        get().fetchMe()
       },
 
       logout: () => {
@@ -69,9 +69,13 @@ export const useAuthStore = create<AuthState>()(
       fetchMe: async () => {
         try {
           const res = await getMe()
-          if (res.ok) set({ user: res.user })
+          if (res.ok) {
+            set({ user: res.user })
+          } else {
+            set({ isAuthenticated: false, user: null, longToken: null, shortToken: null })
+          }
         } catch {
-          void 0
+          set({ isAuthenticated: false, user: null, longToken: null, shortToken: null })
         }
       },
     }),

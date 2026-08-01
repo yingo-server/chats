@@ -4,6 +4,7 @@ import { ThemeProvider } from "next-themes"
 import { AuthGuard } from "@/components/auth/AuthGuard"
 import { AppShell } from "@/components/layout/AppShell"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary"
 import { useAuthStore } from "@/stores/useAuthStore"
 import LoginPage from "@/pages/LoginPage"
 import RegisterPage from "@/pages/RegisterPage"
@@ -28,24 +29,26 @@ export default function App() {
       <TooltipProvider>
         <BrowserRouter>
           <AppInit />
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/register" element={<RegisterPage />} />
-            <Route
-              path="/"
-              element={
-                <AuthGuard>
-                  <AppShell />
-                </AuthGuard>
-              }
-            >
-              <Route index element={<ChatPage />} />
-              <Route path="chat/:roomId" element={<ChatPage />} />
-              <Route path="profile/:id" element={<ProfilePage />} />
-              <Route path="profile" element={<ProfilePage />} />
-            </Route>
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <ErrorBoundary>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route
+                path="/"
+                element={
+                  <AuthGuard>
+                    <AppShell />
+                  </AuthGuard>
+                }
+              >
+                <Route index element={<ChatPage />} />
+                <Route path="chat/:roomId" element={<ChatPage />} />
+                <Route path="profile/:id" element={<ProfilePage />} />
+                <Route path="profile" element={<ProfilePage />} />
+              </Route>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </ErrorBoundary>
         </BrowserRouter>
       </TooltipProvider>
     </ThemeProvider>

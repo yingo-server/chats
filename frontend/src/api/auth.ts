@@ -9,10 +9,6 @@ export async function login(data: LoginReq): Promise<LoginRes> {
   return chatApi.post<LoginRes>("/api/v1/login", data)
 }
 
-export async function verify(token: string): Promise<VerifyRes> {
-  const chatBaseUrl = import.meta.env.VITE_CHAT_API || window.location.origin
-  const res = await fetch(`${chatBaseUrl}/api/v1/verify`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-  return res.json()
+export async function verify(_token: string): Promise<VerifyRes> {
+  return userApi.get<VerifyRes>("/api/v1/verify")
 }

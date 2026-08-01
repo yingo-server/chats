@@ -16,7 +16,7 @@ export default function ProfilePage() {
   if (!displayUser) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-muted-foreground">User not found</p>
+        <p className="text-muted-foreground">Profile not available</p>
       </div>
     )
   }

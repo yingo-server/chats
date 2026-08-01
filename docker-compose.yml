@@ -39,7 +39,7 @@ services:
       retries: 10
 
   user-service:
-    image: ghcr.io/yingo-server/yingo-user:latest
+    build: ./user
     restart: unless-stopped
     ports:
       - "9000:9000"
@@ -58,7 +58,7 @@ services:
         condition: service_healthy
 
   chat-service:
-    image: ghcr.io/yingo-server/yingo-chat:latest
+    build: ./chat
     restart: unless-stopped
     ports:
       - "9001:9001"

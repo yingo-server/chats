@@ -1,9 +1,43 @@
 import type { FastifyInstance } from "fastify";
+import { timingSafeEqual } from "node:crypto";
 import { eq, sql, and, ne } from "drizzle-orm";
 import { db } from "./db.js";
 import { users, tokens } from "./schema.js";
 import { registerUser, loginUser, verifyToken, createApiKey, getUserById, getUserTokens, deleteUser, revokeToken, updateUserPermission, invalidateTokenCache } from "./core.js";
 import { apiKeys } from "./schema.js";
+import pino from "pino";
+
+const log = pino({ level: process.env.LOG_LEVEL || "info", name: "user-routes" });
+
+// ═══ 登录速率限制: 5次/60秒/IP ═══
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+const LOGIN_RATE_LIMIT = 5;
+const LOGIN_RATE_WINDOW = 60_000;
+
+function checkLoginRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + LOGIN_RATE_WINDOW });
+    return true;
+  }
+  entry.count++;
+  if (entry.count > LOGIN_RATE_LIMIT) return false;
+  return true;
+}
+
+// 每 5 分钟清理过期条目
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of loginAttempts) {
+    if (now > entry.resetAt) loginAttempts.delete(ip);
+  }
+}, 300_000);
+
+function safeCompare(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
 
 
 function requireString(body: any, field: string, min: number, max: number): string {
@@ -47,6 +81,10 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   // ═══ 登录 ═══
   app.post("/api/v1/login", async (req, reply) => {
     try {
+      const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip;
+      if (!checkLoginRateLimit(ip)) {
+        return reply.status(429).send({ ok: false, error: "登录尝试过多，请稍后再试" });
+      }
       const { username, password } = req.body as any;
       requireString(req.body, "username", 1, 64);
       requireString(req.body, "password", 1, 128);
@@ -73,8 +111,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
 
   // ═══ 通过ID获取用户 (内部, 需要 Internal API Key) ═══
   app.get("/api/v1/internal/user/:id", async (req, reply) => {
-    const internalKey = req.headers["x-internal-key"];
-    if (!internalKey || internalKey !== (process.env.INTERNAL_API_KEY || "dev-internal-key-change-in-production"))
+    const internalKey = String(req.headers["x-internal-key"] || "");
+    const expectedKey = process.env.INTERNAL_API_KEY;
+    if (!internalKey || !expectedKey || !safeCompare(internalKey, expectedKey))
       return reply.status(403).send({ ok: false, error: "forbidden" });
     const { id } = req.params as any;
     if (typeof id !== "string" || id.length > 16) return reply.status(400).send({ ok: false, error: "invalid id" });
@@ -136,12 +175,16 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return { ok: dbOk, service: "user-v1", db: dbOk ? "ok" : "error" };
   });
 
-  // ═══ Metrics ═══
-  app.get("/api/v1/metrics", async () => ({
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    pid: process.pid,
-  }));
+  // ═══ Metrics (admin only) ═══
+  app.get("/api/v1/metrics", async (req, reply) => {
+    const admin = await requireAdmin(req);
+    if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
+    return {
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      pid: process.pid,
+    };
+  });
 
   // ═══ Admin: 通过ID获取用户 ═══
   app.get("/api/v1/admin/users/:id", async (req, reply) => {
@@ -157,7 +200,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       }).from(users).where(eq(users.id, id)).limit(1);
       if (!rows.length) return reply.status(404).send({ ok: false, error: "用户不存在" });
       return reply.send({ ok: true, user: rows[0] });
-    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+    } catch (e: any) { log.error({ err: e }, "admin getUser failed"); return reply.status(500).send({ ok: false, error: "internal error" }); }
   });
 
   // ═══ Admin: 用户列表 ═══
@@ -171,7 +214,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         createdAt: users.createdAt, lastOnlineAt: users.lastOnlineAt,
       }).from(users).limit(200);
       return reply.send({ ok: true, users: rows, total: rows.length });
-    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+    } catch (e: any) { log.error({ err: e }, "admin listUsers failed"); return reply.status(500).send({ ok: false, error: "internal error" }); }
   });
 
   // ═══ Admin: Token 列表 ═══
@@ -185,7 +228,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
         shortExpires: t.shortExpires, longExpires: t.longExpires,
         createdAt: t.createdAt, revokedAt: t.revokedAt, lastUsedAt: t.lastUsedAt,
       })), total: rows.length });
-    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+    } catch (e: any) { log.error({ err: e }, "admin listTokens failed"); return reply.status(500).send({ ok: false, error: "internal error" }); }
   });
 
   // ═══ Admin: 删除用户 ═══
@@ -203,7 +246,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       await deleteUser(id);
       invalidateTokenCache();
       return reply.send({ ok: true, deleted: id });
-    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+    } catch (e: any) { log.error({ err: e }, "admin deleteUser failed"); return reply.status(500).send({ ok: false, error: "internal error" }); }
   });
 
   // ═══ Admin: 撤销 Token ═══
@@ -218,7 +261,7 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       await revokeToken(id);
       invalidateTokenCache();
       return reply.send({ ok: true, revoked: id });
-    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+    } catch (e: any) { log.error({ err: e }, "admin revokeToken failed"); return reply.status(500).send({ ok: false, error: "internal error" }); }
   });
 
   // ═══ Admin: 修改用户权限 ═══
@@ -238,6 +281,6 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
       await updateUserPermission(id, permission);
       invalidateTokenCache();
       return reply.send({ ok: true, userId: id, permission });
-    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+    } catch (e: any) { log.error({ err: e }, "admin updatePermission failed"); return reply.status(500).send({ ok: false, error: "internal error" }); }
   });
 }

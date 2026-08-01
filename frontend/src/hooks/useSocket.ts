@@ -63,7 +63,18 @@ export function useSocket() {
   const sendMessage = useCallback(
     (roomId: string, content: string, type = "text") => {
       return new Promise<Message>((resolve, reject) => {
-        socketRef.current?.emit("v1:message", { roomId, content, type }, (ack: { ok: boolean; msg?: Message; error?: string }) => {
+        const socket = socketRef.current
+        if (!socket?.connected) {
+          reject(new Error("not connected"))
+          return
+        }
+
+        const timer = setTimeout(() => {
+          reject(new Error("send timeout"))
+        }, 10000)
+
+        socket.emit("v1:message", { roomId, content, type }, (ack: { ok: boolean; msg?: Message; error?: string }) => {
+          clearTimeout(timer)
           if (ack.ok && ack.msg) {
             resolve(ack.msg)
           } else {

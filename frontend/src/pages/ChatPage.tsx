@@ -5,10 +5,11 @@ import { useSocket } from "@/hooks/useSocket"
 import { MessageList } from "@/components/chat/MessageList"
 import { MessageInput } from "@/components/chat/MessageInput"
 import { EmptyState } from "@/components/shared/EmptyState"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export default function ChatPage() {
   const { roomId } = useParams<{ roomId: string }>()
-  const { currentRoomId, setCurrentRoom, rooms } = useRoomStore()
+  const { currentRoomId, setCurrentRoom, rooms, loading } = useRoomStore()
   const { joinRoom, leaveRoom, connected } = useSocket()
 
   useEffect(() => {
@@ -25,6 +26,17 @@ export default function ChatPage() {
   }, [currentRoomId, joinRoom, leaveRoom])
 
   const room = rooms.find((r) => r.id === (roomId || currentRoomId))
+
+  if (loading && rooms.length === 0) {
+    return (
+      <div className="flex h-full flex-col gap-4 p-4">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-12 w-full" />
+        <Skeleton className="h-12 w-full" />
+      </div>
+    )
+  }
 
   if (!room) {
     return <EmptyState />
