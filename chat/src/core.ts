@@ -5,6 +5,7 @@ import { createClient } from "./redis.js";
 import { coldMessages, rooms, roomMembers, media } from "./schema.js";
 import { fetchUser } from "./api.js";
 import { sanitizeMessage, parseDataUrl, classifyMedia, mediaToDataUrl } from "./utils.js";
+import { transcodeVideo480p } from "./video.js";
 import { randomBytes, createHash } from "node:crypto";
 import pino from "pino";
 
@@ -98,10 +99,19 @@ export async function getRoomMembers(roomId: string): Promise<string[]> {
 // Media rows are deduplicated by content sha256: uploading the same bytes returns the existing row (idempotent).
 export async function createMedia(ownerId: string, dataUrl: string) {
   const { mimeType, data } = parseDataUrl(dataUrl);
-  const sha256 = createHash("sha256").update(data).digest("hex");
+  let finalData = data;
+  let finalMime = mimeType;
+  if (mimeType.startsWith("video/")) {
+    const t = await transcodeVideo480p(data, mimeType);
+    if (t) {
+      finalData = t.data;
+      finalMime = t.mimeType;
+    }
+  }
+  const sha256 = createHash("sha256").update(finalData).digest("hex");
   const [existing] = await db.select().from(media).where(eq(media.sha256, sha256)).limit(1);
   if (existing) return existing;
-  const row = { id: genId(), mimeType, data, size: data.length, sha256, ownerId, createdAt: Date.now() };
+  const row = { id: genId(), mimeType: finalMime, data: finalData, size: finalData.length, sha256, ownerId, createdAt: Date.now() };
   try {
     await db.insert(media).values(row);
   } catch (e: any) {

@@ -58,8 +58,8 @@ const SSL_KEY = process.env.SSL_KEY;
 const app = Fastify({
   logger: { level: process.env.LOG_LEVEL || "info" },
   trustProxy: true,
-  bodyLimit: 4 * 1024 * 1024,
-  requestTimeout: 10_000,
+  bodyLimit: 40 * 1024 * 1024,
+  requestTimeout: 60_000,
 });
 
 await app.register(cors, {

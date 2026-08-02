@@ -7,7 +7,7 @@ export function sanitizeMessage(msg: any) {
 
 // ═══ Media (image/audio/video/file) helpers ═══
 
-export const MAX_MEDIA_BYTES = 2 * 1024 * 1024; // 2MB binary payload
+export const MAX_MEDIA_BYTES = 30 * 1024 * 1024; // 30MB binary payload
 export const MEDIA_TYPES = ["image", "audio", "video", "file"] as const;
 export type MediaType = (typeof MEDIA_TYPES)[number];
 

@@ -9,6 +9,7 @@ RUN npx tsc
 
 FROM node:22-alpine
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+RUN apk add --no-cache ffmpeg
 WORKDIR /app
 COPY --from=builder /app/package.json /app/package-lock.json ./
 RUN npm install --omit=dev --ignore-scripts
