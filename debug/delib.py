@@ -384,6 +384,34 @@ def test_get_user_profile_no_auth():
     r = SESSION.get(urljoin(USER_BASE, "/api/v1/users/me"), timeout=5)
     return TR().check_status(r, 401)
 
+# ═══ Room note tests (per-user, only visible to the owner) ═══
+def test_set_room_note():
+    rid = USERS.get("direct_room_id") or USERS.get("group_room_id")
+    if not rid: return TR().fail("no room available")
+    r = SESSION.put(urljoin(USER_BASE, f"/api/v1/me/room-notes/{rid}"), json={"note": "My Room Note"},
+        headers={"Authorization": f"Bearer {USERS['alice']['token']}"}, timeout=5)
+    return TR().check_status(r, 200).check_body(r, ok=True)
+
+def test_get_room_notes():
+    rid = USERS.get("direct_room_id") or USERS.get("group_room_id")
+    r = SESSION.get(urljoin(USER_BASE, "/api/v1/me/room-notes"),
+        headers={"Authorization": f"Bearer {USERS['alice']['token']}"}, timeout=5)
+    tr = TR().check_status(r, 200).check_body(r, ok=True)
+    if tr.ok() and rid and not any(n["roomId"] == rid for n in r.json().get("notes", [])):
+        tr.fail("saved note not returned in list")
+    return tr
+
+def test_room_notes_no_auth():
+    r = SESSION.get(urljoin(USER_BASE, "/api/v1/me/room-notes"), timeout=5)
+    return TR().check_status(r, 401)
+
+def test_clear_room_note():
+    rid = USERS.get("direct_room_id") or USERS.get("group_room_id")
+    if not rid: return TR().fail("no room available")
+    r = SESSION.put(urljoin(USER_BASE, f"/api/v1/me/room-notes/{rid}"), json={"note": ""},
+        headers={"Authorization": f"Bearer {USERS['alice']['token']}"}, timeout=5)
+    return TR().check_status(r, 200).check_body(r, ok=True)
+
 def test_get_token_list():
     u = list(USERS.values())[0]
     r = SESSION.get(urljoin(USER_BASE, "/api/v1/tokens/me"),
@@ -517,6 +545,56 @@ def test_get_room_members_no_auth():
     rid = USERS.get("direct_room_id") or USERS.get("group_room_id")
     r = SESSION.get(urljoin(CHAT_BASE, f"/api/v1/rooms/{rid}/members"), timeout=5)
     return TR().check_status(r, 401)
+
+# ═══ Delete / leave room tests ═══
+def test_delete_direct_room():
+    r = SESSION.post(urljoin(CHAT_BASE, "/api/v1/rooms/direct"), json={
+        "targetUserId": USERS["carol"]["id"]
+    }, headers={"Authorization": f"Bearer {USERS['alice']['token']}"}, timeout=5)
+    if r.status_code != 201:
+        return TR().fail("failed to create temp direct room")
+    rid = r.json()["room"]["id"]
+    track_room(rid)
+    d = SESSION.delete(urljoin(CHAT_BASE, f"/api/v1/rooms/{rid}"),
+        headers={"Authorization": f"Bearer {USERS['alice']['token']}"}, timeout=5)
+    tr = TR().check_status(d, 200).check_body(d, ok=True)
+    if tr.ok() and d.json().get("action") != "deleted":
+        tr.fail(f"expected action=deleted, got {d.json().get('action')}")
+    l = SESSION.get(urljoin(CHAT_BASE, "/api/v1/rooms"),
+        headers={"Authorization": f"Bearer {USERS['alice']['token']}"}, timeout=5)
+    if tr.ok() and any(x["id"] == rid for x in l.json().get("rooms", [])):
+        tr.fail("direct room still listed after delete")
+    return tr
+
+def test_delete_room_no_auth():
+    r = SESSION.delete(urljoin(CHAT_BASE, "/api/v1/rooms/1234567890123456"), timeout=5)
+    return TR().check_status(r, 401)
+
+def test_delete_room_not_member():
+    rid = USERS.get("group_room_id") or USERS.get("direct_room_id")
+    if not rid: return TR().fail("no room available")
+    r = SESSION.delete(urljoin(CHAT_BASE, f"/api/v1/rooms/{rid}"),
+        headers={"Authorization": f"Bearer {USERS['admin']['token']}"}, timeout=5)
+    return TR().check_status(r, 403)
+
+def test_leave_group_room_last_member_deletes():
+    r = SESSION.post(urljoin(CHAT_BASE, "/api/v1/rooms/group"), json={
+        "name": "Temp Leave Group", "memberIds": []
+    }, headers={"Authorization": f"Bearer {USERS['bob']['token']}"}, timeout=5)
+    if r.status_code != 201:
+        return TR().fail("failed to create temp group")
+    rid = r.json()["room"]["id"]
+    track_room(rid)
+    d = SESSION.delete(urljoin(CHAT_BASE, f"/api/v1/rooms/{rid}"),
+        headers={"Authorization": f"Bearer {USERS['bob']['token']}"}, timeout=5)
+    tr = TR().check_status(d, 200).check_body(d, ok=True)
+    if tr.ok() and d.json().get("action") != "left":
+        tr.fail(f"expected action=left, got {d.json().get('action')}")
+    det = SESSION.get(urljoin(CHAT_BASE, f"/api/v1/rooms/{rid}"),
+        headers={"Authorization": f"Bearer {USERS['bob']['token']}"}, timeout=5)
+    if tr.ok() and det.status_code != 404:
+        tr.fail("room still exists after last member left")
+    return tr
 
 # ═══ Message tests ═══
 def test_send_message():
@@ -2180,6 +2258,14 @@ SUITES = [
         (test_get_room_detail_not_found, 3),
         (test_get_room_members, 3),
         (test_get_room_members_no_auth, 3),
+        (test_set_room_note, 1),
+        (test_get_room_notes, 3),
+        (test_room_notes_no_auth, 3),
+        (test_clear_room_note, 3),
+        (test_delete_direct_room, 1),
+        (test_delete_room_no_auth, 3),
+        (test_delete_room_not_member, 3),
+        (test_leave_group_room_last_member_deletes, 1),
     ]),
     ("Message Send/Receive", [
         (test_send_message, 3),
@@ -2378,26 +2464,7 @@ def run_all():
         log(f"fatal: initialization failed: {e}")
         sys.exit(1)
 
-    # Promote alice to admin (local: update DB directly; cloud: the first registered user is auto-admin, no promotion needed)
-    alice_id = USERS["alice"]["id"]
-    if alice_id and not CLOUD_MODE:
-        import subprocess
-        try:
-            cmd = f"UPDATE users SET permission = 'admin' WHERE id = '{alice_id}';"
-            subprocess.run(
-                ["docker", "exec", "user-user-db-1",
-                 "psql", "-U", "yingo", "-d", "cold_user", "-c", cmd],
-                capture_output=True, text=True, timeout=10, check=True
-            )
-            log(f"  alice promoted to admin (id={alice_id})")
-        except Exception as e:
-            log(f"  alice promotion failed: {e}")
-        # Re-login to get a fresh token carrying the admin permission
-        try:
-            test_login()
-            log("  re-logged in for admin token")
-        except Exception as e:
-            log(f"  re-login failed: {e}")
+    promote_alice()
 
     for suite_name, tests in SUITES:
         log(f"\n{'='*60}")
@@ -2422,6 +2489,28 @@ def run_all():
     cleanup_all()
 
     return FAIL == 0
+
+def promote_alice():
+    """Promote alice to admin (local: update DB directly; cloud: the first registered user is auto-admin, no promotion needed)."""
+    alice_id = USERS["alice"]["id"]
+    if alice_id and not CLOUD_MODE:
+        import subprocess
+        try:
+            cmd = f"UPDATE users SET permission = 'admin' WHERE id = '{alice_id}';"
+            subprocess.run(
+                ["docker", "exec", "user-user-db-1",
+                 "psql", "-U", "yingo", "-d", "cold_user", "-c", cmd],
+                capture_output=True, text=True, timeout=10, check=True
+            )
+            log(f"  alice promoted to admin (id={alice_id})")
+        except Exception as e:
+            log(f"  alice promotion failed: {e}")
+        # Re-login to get a fresh token carrying the admin permission
+        try:
+            test_login()
+            log("  re-logged in for admin token")
+        except Exception as e:
+            log(f"  re-login failed: {e}")
 
 if __name__ == "__main__":
     ok = run_all()

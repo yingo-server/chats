@@ -38,6 +38,7 @@ else:
 
 total_iters = sum(t for _, tests in selected for _, t in tests)
 out(f"\n{len(selected)} suites, {total_iters} tests total")
+out(f"Target: USER_BASE={delib.USER_BASE}  CHAT_BASE={delib.CHAT_BASE}  CLOUD_MODE={delib.CLOUD_MODE}")
 out(f"Log: {LOG_PATH}")
 import time as _time
 _start = _time.time()
@@ -71,6 +72,9 @@ except Exception as e:
     out(f"FATAL: initialization failed: {e}")
     delib.close_log()
     sys.exit(1)
+
+out("\n=== Promote alice to admin ===")
+delib.promote_alice()
 
 done = 0
 for suite_name, tests in selected:
