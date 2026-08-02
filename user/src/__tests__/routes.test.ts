@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import Fastify from "fastify";
 
-// ═══ Mock 数据库和依赖 ═══
+// ═══ Mock database and dependencies ═══
 const mockDb = {
   select: vi.fn().mockReturnThis(),
   from: vi.fn().mockReturnThis(),
@@ -25,17 +25,21 @@ vi.mock("../schema.js", () => ({
 vi.mock("../core.js", () => ({
   registerUser: vi.fn().mockResolvedValue({ id: "1234567890000001", globalName: "testuser" }),
   loginUser: vi.fn().mockResolvedValue({ user_id: "1234567890000001", short_token: "a".repeat(32), long_token: "b".repeat(64), expires_in: 3600 }),
-  verifyToken: vi.fn().mockResolvedValue({ userId: "1234567890000001", scopes: ["user:read", "chat:read", "chat:send"] }),
+  verifyToken: vi.fn().mockImplementation(async (token: string) => {
+    if (!/^[0-9a-f]{32}$/.test(token) && !/^[0-9a-f]{64}$/.test(token)) return null;
+    return { userId: "1234567890000001", scopes: ["user:read", "chat:read", "chat:send"], permission: "admin" };
+  }),
   createApiKey: vi.fn().mockResolvedValue({ key: "mk-" + "c".repeat(128), name: "testkey", expiresDays: 30, rateLimit: 100, prefix: "mk-" }),
   startTokenCleaner: vi.fn().mockReturnValue(setInterval(() => {}, 86400000)),
   resetAllOnline: vi.fn().mockResolvedValue(undefined),
 }));
 
-// ═══ 测试路由 ═══
-describe("User Service 路由", () => {
+// ═══ Test routes ═══
+describe("User Service routes", () => {
   let app: ReturnType<typeof Fastify>;
 
   beforeAll(async () => {
+    process.env.INTERNAL_API_KEY = "dev-internal-key-change-in-production";
     app = Fastify({ logger: false });
     const { registerRoutes } = await import("../routes.js");
     await registerRoutes(app);
@@ -45,8 +49,8 @@ describe("User Service 路由", () => {
     await app.close();
   });
 
-  // ═══ 健康检查 ═══
-  it("GET /api/v1/health 返回 ok", async () => {
+  // ═══ Health check ═══
+  it("GET /api/v1/health returns ok", async () => {
     const res = await app.inject({ method: "GET", url: "/api/v1/health" });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
@@ -54,8 +58,8 @@ describe("User Service 路由", () => {
     expect(body.service).toBe("user-v1");
   });
 
-  // ═══ 就绪检查 ═══
-  it("GET /api/v1/ready 检查数据库", async () => {
+  // ═══ Readiness check ═══
+  it("GET /api/v1/ready checks the database", async () => {
     const res = await app.inject({ method: "GET", url: "/api/v1/ready" });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
@@ -64,8 +68,17 @@ describe("User Service 路由", () => {
   });
 
   // ═══ Metrics ═══
-  it("GET /api/v1/metrics 返回进程信息", async () => {
+  it("GET /api/v1/metrics returns 403 without admin auth", async () => {
     const res = await app.inject({ method: "GET", url: "/api/v1/metrics" });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("GET /api/v1/metrics returns process info for an admin", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v1/metrics",
+      headers: { authorization: "Bearer " + "a".repeat(32) },
+    });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
     expect(body.uptime).toBeGreaterThan(0);
@@ -73,8 +86,8 @@ describe("User Service 路由", () => {
     expect(body.pid).toBeGreaterThan(0);
   });
 
-  // ═══ 注册 ═══
-  it("POST /api/v1/register 成功注册", async () => {
+  // ═══ Register ═══
+  it("POST /api/v1/register succeeds", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/v1/register",
@@ -86,7 +99,7 @@ describe("User Service 路由", () => {
     expect(body.user.id).toBeDefined();
   });
 
-  it("POST /api/v1/register 用户名太短返回 400", async () => {
+  it("POST /api/v1/register returns 400 for a username that is too short", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/v1/register",
@@ -95,7 +108,7 @@ describe("User Service 路由", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it("POST /api/v1/register 缺少密码返回 400", async () => {
+  it("POST /api/v1/register returns 400 when the password is missing", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/v1/register",
@@ -104,8 +117,8 @@ describe("User Service 路由", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  // ═══ 登录 ═══
-  it("POST /api/v1/login 成功登录", async () => {
+  // ═══ Login ═══
+  it("POST /api/v1/login succeeds", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/v1/login",
@@ -118,7 +131,7 @@ describe("User Service 路由", () => {
     expect(body.long_token).toBeDefined();
   });
 
-  it("POST /api/v1/login 缺少用户名返回 401", async () => {
+  it("POST /api/v1/login returns 401 when the username is missing", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/v1/login",
@@ -127,8 +140,8 @@ describe("User Service 路由", () => {
     expect(res.statusCode).toBe(401);
   });
 
-  // ═══ Token 验证 ═══
-  it("GET /api/v1/verify 有效 token 返回用户信息", async () => {
+  // ═══ Token verification ═══
+  it("GET /api/v1/verify returns user info for a valid token", async () => {
     const res = await app.inject({
       method: "GET",
       url: "/api/v1/verify",
@@ -141,12 +154,12 @@ describe("User Service 路由", () => {
     expect(body.scopes).toBeDefined();
   });
 
-  it("GET /api/v1/verify 缺少 token 返回 401", async () => {
+  it("GET /api/v1/verify returns 401 when the token is missing", async () => {
     const res = await app.inject({ method: "GET", url: "/api/v1/verify" });
     expect(res.statusCode).toBe(401);
   });
 
-  it("GET /api/v1/verify 无效格式返回 401", async () => {
+  it("GET /api/v1/verify returns 401 for an invalid format", async () => {
     const res = await app.inject({
       method: "GET",
       url: "/api/v1/verify",
@@ -155,8 +168,8 @@ describe("User Service 路由", () => {
     expect(res.statusCode).toBe(401);
   });
 
-  // ═══ 内部用户查询 (无认证) ═══
-  it("GET /api/v1/internal/user/:id 无认证返回 403", async () => {
+  // ═══ Internal user query (no auth) ═══
+  it("GET /api/v1/internal/user/:id returns 403 without the key", async () => {
     const res = await app.inject({
       method: "GET",
       url: "/api/v1/internal/user/1234567890000001",
@@ -164,7 +177,7 @@ describe("User Service 路由", () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it("GET /api/v1/internal/user/:id 正确密钥返回用户", async () => {
+  it("GET /api/v1/internal/user/:id returns the user with the correct key", async () => {
     mockDb.select.mockReturnValueOnce({
       from: vi.fn().mockReturnValue({
         where: vi.fn().mockReturnValue({
@@ -182,7 +195,7 @@ describe("User Service 路由", () => {
     expect(body.ok).toBe(true);
   });
 
-  it("GET /api/v1/internal/user/:id 错误密钥返回 403", async () => {
+  it("GET /api/v1/internal/user/:id returns 403 with a wrong key", async () => {
     const res = await app.inject({
       method: "GET",
       url: "/api/v1/internal/user/1234567890000001",
@@ -192,7 +205,7 @@ describe("User Service 路由", () => {
   });
 
   // ═══ API Key ═══
-  it("POST /api/v1/api-keys 创建成功", async () => {
+  it("POST /api/v1/api-keys creates a key", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/v1/api-keys",
@@ -205,7 +218,7 @@ describe("User Service 路由", () => {
     expect(body.key).toMatch(/^mk-/);
   });
 
-  it("POST /api/v1/api-keys 无认证返回 401", async () => {
+  it("POST /api/v1/api-keys returns 401 without auth", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/v1/api-keys",

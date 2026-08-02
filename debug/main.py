@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Yingo 测试控制台 — 进度条 / 仅输出失败 / 日志按时间戳保存"""
+"""Yingo test console — progress bar / failures-only output / timestamped log files"""
 
 import sys, os, datetime, time
 
@@ -21,7 +21,7 @@ def out(msg):
 def progress_line(current, total):
     if total <= 0: return
     pct = current * 100 // total
-    out(f"  进度: {current}/{total} ({pct}%)")
+    out(f"   progress: {current}/{total} ({pct}%)")
 
 requested = [a for a in sys.argv[1:] if not a.startswith("-")]
 all_suites = delib.SUITES
@@ -29,71 +29,71 @@ if requested:
     selected = [(n, t) for n, t in all_suites if n in requested]
     if not selected:
         avail = ", ".join(n for n, _ in all_suites)
-        out(f"\n错误: 未找到套件「{requested[0]}」")
-        out(f"可用: {avail}")
+        out(f"\nERROR: suite \"{requested[0]}\" not found")
+        out(f"Available: {avail}")
         delib.close_log()
         sys.exit(1)
 else:
     selected = all_suites
 
 total_iters = sum(t for _, tests in selected for _, t in tests)
-out(f"\n共 {len(selected)} 个套件, {total_iters} 项测试")
-out(f"日志: {LOG_PATH}")
+out(f"\n{len(selected)} suites, {total_iters} tests total")
+out(f"Log: {LOG_PATH}")
 import time as _time
 _start = _time.time()
 out("")
 
-out("=== 等待服务就绪 ===")
+out("=== Waiting for services ===")
 import time as _time
 for svc, base in [("User Service", delib.USER_BASE), ("Chat Service", delib.CHAT_BASE)]:
-    out(f"  等待 {svc} ...")
+    out(f"  waiting for {svc} ...")
     try:
         delib.wait_service(base, svc)
-        out(f"  {svc} 就绪 ✓")
+        out(f"  {svc} ready ✓")
     except Exception as e:
-        out(f"致命错误: {e}")
+        out(f"FATAL: {e}")
         delib.close_log()
         sys.exit(1)
 
-out("\n=== 重置数据库 ===")
+out("\n=== Reset database ===")
 delib.reset_db()
 
-out("\n=== 初始化用户 ===")
+out("\n=== Initialize users ===")
 delib.init_users()
 try:
-    delib.test_注册()
-    delib.test_登录()
+    delib.test_register()
+    delib.test_login()
     for u in delib.USERS.values():
         if u.get("id"):
             delib.track_user(u["id"])
-    out("  用户已创建并登录")
+    out("  users created and logged in")
 except Exception as e:
-    out(f"致命错误: 初始化失败: {e}")
+    out(f"FATAL: initialization failed: {e}")
     delib.close_log()
     sys.exit(1)
 
 done = 0
 for suite_name, tests in selected:
-    out(f"\n--- 套件: {suite_name} ({sum(t for _,t in tests)}项) ---")
+    out(f"\n--- Suite: {suite_name} ({sum(t for _,t in tests)} items) ---")
     for fn, times in tests:
         delib.R(fn.__name__, fn, times=times)
         done += 1
-    out(f"  套件完成: {suite_name} ({done}/{len(tests)})")
+    out(f"  suite complete: {suite_name} ({done}/{len(tests)})")
 
 out(f"\n{'='*50}")
 total = delib.PASS + delib.FAIL + delib.EXPECTED_FAIL
-out(f"  总计: {total} 项测试")
-out(f"  通过: {delib.PASS}")
-out(f"  预期失败: {delib.EXPECTED_FAIL}")
-out(f"  失败: {delib.FAIL}")
-out(f"  追踪: 用户={len(delib.TESTED_IDS['users'])}, 房间={len(delib.TESTED_IDS['rooms'])}, Token={len(delib.TESTED_IDS['tokens'])}")
+out(f"  Total: {total} tests")
+out(f"  Passed: {delib.PASS}")
+out(f"  Expected failures: {delib.EXPECTED_FAIL}")
+out(f"  Failed: {delib.FAIL}")
+out(f"  Tracked: users={len(delib.TESTED_IDS['users'])}, rooms={len(delib.TESTED_IDS['rooms'])}, tokens={len(delib.TESTED_IDS['tokens'])}")
 if delib.ERRORS:
-    out(f"\n  失败详情（前10条）:")
+    out(f"\n  Failure details (first 10):")
     for e in delib.ERRORS[:10]:
         out(f"    {e}")
 out(f"{'='*50}")
 
-out(f"\n日志已保存到: {LOG_PATH}")
+out(f"\nLog saved to: {LOG_PATH}")
 
 delib.cleanup_all()
 delib.close_log()

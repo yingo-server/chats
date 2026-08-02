@@ -11,8 +11,8 @@ const CACHE_TTL = 300_000;
 
 const redis = createClient();
 
-// ═══ 滑动窗口速率限制（基于 Redis INCR）═══
-// 返回 true = 允许, false = 超限
+// ═══ Sliding window rate limiting (based on Redis INCR) ═══
+// Returns true = allowed, false = rate limited
 export async function checkRateLimit(key: string, limit: number, windowSec: number): Promise<boolean> {
   try {
     const now = Date.now();
@@ -27,7 +27,7 @@ export async function checkRateLimit(key: string, limit: number, windowSec: numb
     const curr = parseInt(currCount || "0", 10);
     const prev = parseInt(prevCount || "0", 10);
 
-    // 加权：上一个窗口的剩余比例 + 当前窗口计数
+    // Weighted: remaining proportion of the previous window + current window count
     const elapsed = (now / 1000) % windowSec;
     const weight = 1 - elapsed / windowSec;
     const total = prev * weight + curr;
@@ -40,7 +40,7 @@ export async function checkRateLimit(key: string, limit: number, windowSec: numb
     await pipe.exec();
     return true;
   } catch (e) {
-    // Redis 不可用时拒绝请求（fail-closed）
+    // Deny requests when Redis is unavailable (fail-closed)
     log.warn({ err: e }, "Rate limit check failed, denying request");
     return false;
   }
@@ -50,7 +50,7 @@ export async function secureFetch(url: string, init?: RequestInit): Promise<Resp
   return fetch(url, init);
 }
 
-// ═══ verifyToken: 带重试 + 单飞 + 短缓存（避免每个 socket 连接都查 user 服务）═══
+// ═══ verifyToken: retry + single-flight + short cache (avoids hitting the user service for every socket connection) ═══
 const inflight = new Map<string, Promise<AuthResult | null>>();
 const verifyCache = new Map<string, { result: AuthResult | null; ts: number }>();
 const VERIFY_CACHE_TTL = 30_000;
@@ -98,7 +98,7 @@ async function doVerifyToken(token: string): Promise<AuthResult | null> {
   return null;
 }
 
-// ═══ fetchUser: 带缓存+重试 ═══
+// ═══ fetchUser: with cache + retry ═══
 const userCache = new Map<string, { user: any; ts: number }>();
 
 export async function fetchUser(userId: string): Promise<any> {
@@ -136,7 +136,7 @@ export async function fetchUser(userId: string): Promise<any> {
   return null;
 }
 
-// ═══ searchUsers: 代理到 user service ═══
+// ═══ searchUsers: proxy to user service ═══
 export async function searchUsers(token: string, query: string): Promise<any> {
   for (let attempt = 0; attempt < 2; attempt++) {
     try {

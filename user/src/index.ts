@@ -39,11 +39,11 @@ app.addHook("onRequest", async (req) => {
 
 await registerRoutes(app);
 
-// ═══ Admin 控制面板 ═══
+// ═══ Admin dashboard ═══
 const dashboardHtml = readFileSync(join(import.meta.dirname!, "../dashboard/index.html"), "utf-8");
 app.get("/admin", async (req, reply) => reply.type("text/html").send(dashboardHtml));
 
-// ═══ 启动前校验 ═══
+// ═══ Pre-start validation ═══
 try {
   await waitForDb(10, 2000);
 } catch (e: any) {
@@ -55,7 +55,7 @@ await resetAllOnline();
 const cleanerTimer = startTokenCleaner();
 log.info("Token cleaner started (24h interval)");
 
-// ═══ 关闭处理（带超时强制退出）═══
+// ═══ Shutdown handling (forced exit on timeout) ═══
 let shuttingDown = false;
 async function shutdown(signal: string) {
   if (shuttingDown) return;

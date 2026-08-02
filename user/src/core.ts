@@ -29,12 +29,12 @@ function verifyPassword(pw: string, stored: string): boolean {
 
 // ═══ ID ═══
 export function generateId(): string {
-  const ts = Date.now().toString(); // 13 位毫秒时间戳，2286 年前不会回绕
+  const ts = Date.now().toString(); // 13-digit millisecond timestamp, no wrap-around before year 2286
   const rand = (randomBytes(2).readUIntBE(0, 2) % 1000).toString().padStart(3, "0");
   return ts + rand;
 }
 
-// ═══ 用户名去重（LIKE 通配符转义 + 精确匹配 #N 后缀）═══
+// ═══ Username dedup (LIKE wildcard escaping + exact #N suffix matching) ═══
 function escapeLike(s: string): string {
   return s.replace(/[\\%_]/g, m => "\\" + m);
 }
@@ -55,14 +55,14 @@ export async function resolveGlobalName(baseName: string): Promise<string> {
   return `${baseName}#${max + 1}`;
 }
 
-// ═══ 注册 ═══
+// ═══ Register ═══
 export async function registerUser(username: string, password: string, appId: string = "chat") {
-  if (username.length < 2 || username.length > 20) throw new Error("用户名2-20字");
-  if (password.length < 8) throw new Error("密码至少8位");
+  if (username.length < 2 || username.length > 20) throw new Error("username must be 2-20 characters");
+  if (password.length < 8) throw new Error("password must be at least 8 characters");
 
   const adminUsername = process.env.ADMIN_USERNAME;
 
-  // ID碰撞/并发同名自动重试（最多3次）；事务内用 advisory lock 串行化"首个管理员"判定
+  // ID collision / concurrent same-name retry (max 3 attempts); advisory lock serializes "first admin" decision in the transaction
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       return await db.transaction(async (tx) => {
@@ -107,12 +107,12 @@ export async function registerUser(username: string, password: string, appId: st
         const detail: string = e?.detail || "";
         const isNameConflict = e?.constraint_name?.includes?.("global_name") || detail.includes("global_name");
         if (isNameConflict) {
-          // 并发同名注册：后缀解析有竞态，重试重新取名
+          // Concurrent same-name registration: suffix resolution has a race, retry with a new name
           if (attempt < 2) {
             await new Promise(r => setTimeout(r, 10));
             continue;
           }
-          throw new Error("用户名已被占用");
+          throw new Error("username already taken");
         }
         if (attempt < 2) {
           log.warn({ attempt, code: "id-collision" }, "ID collision, retrying");
@@ -123,18 +123,18 @@ export async function registerUser(username: string, password: string, appId: st
       throw e;
     }
   }
-  throw new Error("注册失败，请重试");
+  throw new Error("registration failed, please retry");
 }
 
-// ═══ 登录 → 签发Token对 ═══
+// ═══ Login -> issue token pair ═══
 export async function loginUser(username: string, password: string) {
   const [user] = await db.select().from(users).where(eq(users.globalName, username)).limit(1);
-  if (!user) throw new Error("用户名或密码错误");
+  if (!user) throw new Error("invalid username or password");
 
   const valid = verifyPassword(password, user.passwordHash);
-  if (!valid) throw new Error("用户名或密码错误");
+  if (!valid) throw new Error("invalid username or password");
 
-  // 更新在线状态
+  // Update online status
   await db.update(users).set({ online: true, lastOnlineAt: Date.now() }).where(eq(users.id, user.id));
 
   const shortToken = randomBytes(16).toString("hex"); // 32 hex chars
@@ -146,7 +146,7 @@ export async function loginUser(username: string, password: string) {
   const lookupShort = createHash("sha256").update(shortToken).digest("hex");
   const now = Date.now();
 
-  // ID 碰撞自动重试（最多3次）
+  // ID collision automatic retry (max 3 attempts)
   for (let attempt = 0; attempt < 3; attempt++) {
     const tid = generateId();
     try {
@@ -173,13 +173,13 @@ export async function loginUser(username: string, password: string) {
   return { user_id: user.id, short_token: shortToken, long_token: longToken, expires_in: 3600, permission: user.permission };
 }
 
-// ═══ 验证Token（带内存缓存，避免全表扫描）═══
+// ═══ Verify token (with in-memory cache to avoid full table scans) ═══
 const tokenVerifyCache = new Map<string, { result: { userId: string; scopes: string[]; permission: string } | null; ts: number }>();
 const TOKEN_CACHE_TTL = 10_000;
 const TOKEN_CACHE_FAIL_TTL = 1_000;
 const TOKEN_CACHE_MAX = 50_000;
 
-// 权限变更/撤销/删除后调用，使缓存立即失效
+// Call after permission changes / revocations / deletions to invalidate the cache immediately
 export function invalidateTokenCache() {
   tokenVerifyCache.clear();
 }
@@ -187,12 +187,12 @@ export function invalidateTokenCache() {
 export async function verifyToken(tokenStr: string): Promise<{ userId: string; scopes: string[]; permission: string } | null> {
   if (!tokenStr) return null;
 
-  // 命中缓存直接返回
+  // Cache hit returns immediately
   const cached = tokenVerifyCache.get(tokenStr);
   if (cached && Date.now() - cached.ts < TOKEN_CACHE_TTL) return cached.result;
 
   const now = Date.now();
-  // 通过 tokenLookup / shortLookup 索引直接定位，O(1) 查找
+  // Locate directly via tokenLookup / shortLookup index, O(1) lookup
   let candidate: any = null;
   const lookupHash = createHash("sha256").update(tokenStr).digest("hex");
   try {
@@ -241,12 +241,12 @@ export async function verifyToken(tokenStr: string): Promise<{ userId: string; s
     return result;
   }
 
-  // 失败结果只缓存 1 秒，避免 DB 瞬时抖动造成 10 秒雪崩
+  // Failed results are only cached for 1 second to avoid a 10-second thundering herd on transient DB issues
   tokenVerifyCache.set(tokenStr, { result: null, ts: Date.now() - (TOKEN_CACHE_TTL - TOKEN_CACHE_FAIL_TTL) });
   return null;
 }
 
-// ═══ 获取用户自身的资料 ═══
+// ═══ Get user's own profile ═══
 export async function getUserById(userId: string) {
   const [u] = await db.select({
     id: users.id, globalName: users.globalName, appNames: users.appNames,
@@ -256,7 +256,7 @@ export async function getUserById(userId: string) {
   return u || null;
 }
 
-// ═══ 获取用户自身的 Token 列表 ═══
+// ═══ Get user's own token list ═══
 export async function getUserTokens(userId: string) {
   const rows = await db.select().from(tokens).where(eq(tokens.userId, userId)).limit(200);
   return rows.map(t => ({
@@ -266,17 +266,17 @@ export async function getUserTokens(userId: string) {
   }));
 }
 
-// ═══ 创建 API Key (128位, mk-/rk- 前缀) ═══
+// ═══ Create API Key (128-bit, mk-/rk- prefix) ═══
 export async function createApiKey(userId: string, name: string, scopes: string[], expiresDays: number) {
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  if (!user) throw new Error("用户不存在");
+  if (!user) throw new Error("user not found");
 
-  if (!name || typeof name !== "string" || name.length < 1 || name.length > 64) throw new Error("name 须为 1-64 字符");
+  if (!name || typeof name !== "string" || name.length < 1 || name.length > 64) throw new Error("name must be 1-64 characters");
   if (!Array.isArray(scopes) || scopes.length > 8 || scopes.some(s => typeof s !== "string" || s.length < 1 || s.length > 32))
-    throw new Error("scopes 须为最多8个 1-32 字符的字符串");
+    throw new Error("scopes must be at most 8 strings of 1-32 characters");
 
   const validDays = [7, 30, 60, 90, 180];
-  if (!validDays.includes(expiresDays)) throw new Error("有效期必须是 7/30/60/90/180 天");
+  if (!validDays.includes(expiresDays)) throw new Error("expiry must be 7/30/60/90/180 days");
 
   const keyBody = randomBytes(64).toString("hex"); // 128 hex chars
   const prefix = user.permission === "admin" ? "rk-" : "mk-";
@@ -304,10 +304,10 @@ export async function createApiKey(userId: string, name: string, scopes: string[
       throw e;
     }
   }
-  throw new Error("创建 API Key 失败");
+  throw new Error("failed to create API key");
 }
 
-// ═══ 管理员: 删除用户（事务级联删除 token + api key）═══
+// ═══ Admin: Delete user (transactional cascade: tokens + api keys) ═══
 export async function deleteUser(userId: string): Promise<void> {
   try {
     await db.transaction(async (tx) => {
@@ -323,23 +323,23 @@ export async function deleteUser(userId: string): Promise<void> {
   }
 }
 
-// ═══ 管理员: 撤销（删除）Token ═══
+// ═══ Admin: Revoke (delete) token ═══
 export async function revokeToken(tokenId: string): Promise<void> {
   await db.update(tokens).set({ revokedAt: Date.now() }).where(eq(tokens.id, tokenId));
 }
 
-// ═══ 管理员: 修改用户权限 ═══
+// ═══ Admin: Update user permission ═══
 export async function updateUserPermission(userId: string, permission: string): Promise<void> {
-  if (permission !== "admin" && permission !== "user") throw new Error("权限必须是 admin 或 user");
+  if (permission !== "admin" && permission !== "user") throw new Error("permission must be 'admin' or 'user'");
   await db.update(users).set({ permission }).where(eq(users.id, userId));
 }
 
-// ═══ Token 清理: 删除过期+已撤销token ═══
+// ═══ Token cleanup: delete expired + revoked tokens ═══
 export function startTokenCleaner(): ReturnType<typeof setInterval> {
   return setInterval(async () => {
     try {
       await db.delete(tokens).where(sql`${tokens.longExpires} < ${Date.now()}`);
-      // 同时清理 revokedAt 超过 7 天的旧记录
+      // Also clean up old records revoked more than 7 days ago
       await db.delete(tokens).where(and(
         sql`${tokens.revokedAt} IS NOT NULL`,
         sql`${tokens.revokedAt} < ${Date.now() - 604800_000}`

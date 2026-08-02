@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -68,21 +68,21 @@ code{font-family:monospace;font-size:11px;background:#f5f5f5;padding:1px 4px;bor
 <div class="header">
   <h1>Yingo Chat Service</h1>
   <span class="badge">v1</span>
-  <span id="statusBadge" class="bg-err">检查中...</span>
+  <span id="statusBadge" class="bg-err">Checking...</span>
   <div class="user-info" id="userInfo" style="display:none">
     <span id="userNameDisplay"></span>
     <span id="userPermBadge"></span>
-    <button class="sec" onclick="app.auth.logout()" style="padding:3px 10px">退出</button>
+    <button class="sec" onclick="app.auth.logout()" style="padding:3px 10px">Logout</button>
   </div>
 </div>
 
 <div class="container">
   <div id="loginPage" style="max-width:360px;margin:50px auto">
     <div class="card" style="padding:28px">
-      <b style="font-size:16px;display:block;text-align:center;margin-bottom:16px">聊天服务面板登录</b>
-      <div class="row"><input id="loginUser" placeholder="用户名" autocomplete="username"></div>
-      <div class="row"><input id="loginPass" type="password" placeholder="密码" autocomplete="current-password"></div>
-      <button class="primary" onclick="app.login()" id="loginBtn" style="width:100%;padding:9px">登录</button>
+      <b style="font-size:16px;display:block;text-align:center;margin-bottom:16px">Chat Service Dashboard Login</b>
+      <div class="row"><input id="loginUser" placeholder="Username" autocomplete="username"></div>
+      <div class="row"><input id="loginPass" type="password" placeholder="Password" autocomplete="current-password"></div>
+      <button class="primary" onclick="app.login()" id="loginBtn" style="width:100%;padding:9px">Login</button>
       <p id="loginError" class="mt" style="color:#a4262c;font-size:12px;text-align:center;display:none"></p>
     </div>
   </div>
@@ -154,14 +154,14 @@ class ApiClient {
       clearTimeout(timeout);
       let data;
       try { data = await r.json(); } catch { data = null; }
-      if (r.status === 401 && app.state.token) { app.auth.logout(); throw new ApiError('登录已过期', 401, data); }
+      if (r.status === 401 && app.state.token) { app.auth.logout(); throw new ApiError('Session expired', 401, data); }
       if (!r.ok) throw new ApiError(data?.error || r.statusText, r.status, data);
       return data;
     }).catch(e => {
       clearTimeout(timeout);
-      if (e.name === 'AbortError') throw new ApiError('请求超时', 0, null);
+      if (e.name === 'AbortError') throw new ApiError('Request timeout', 0, null);
       if (e instanceof ApiError) throw e;
-      throw new ApiError('网络错误: ' + e.message, 0, null);
+      throw new ApiError('Network error: ' + e.message, 0, null);
     });
   }
   get(path) { return this._fetch('GET', path); }
@@ -217,36 +217,36 @@ class AuthService {
 function fmtTime(ms) {
   if (!ms) return '-';
   const diff = Date.now() - ms, abs = Math.abs(diff), s = Math.floor(abs / 1000);
-  if (s < 60) return Math.floor(s) + (diff > 0 ? '秒前' : '秒后');
-  if (s < 3600) return Math.floor(s / 60) + (diff > 0 ? '分钟前' : '分钟后');
-  if (s < 86400) return Math.floor(s / 3600) + (diff > 0 ? '小时前' : '小时后');
-  if (s < 2592000) return Math.floor(s / 86400) + (diff > 0 ? '天前' : '天后');
-  return new Date(ms).toLocaleDateString('zh-CN');
+  if (s < 60) return Math.floor(s) + (diff > 0 ? 's ago' : 'in ' + Math.floor(s) + 's');
+  if (s < 3600) return Math.floor(s / 60) + (diff > 0 ? 'min ago' : 'min ahead');
+  if (s < 86400) return Math.floor(s / 3600) + (diff > 0 ? 'h ago' : 'h ahead');
+  if (s < 2592000) return Math.floor(s / 86400) + (diff > 0 ? 'd ago' : 'd ahead');
+  return new Date(ms).toLocaleString();
 }
 function fmtUptime(s) {
-  if (s < 60) return Math.floor(s) + '秒';
-  if (s < 3600) return Math.floor(s / 60) + '分' + Math.floor(s % 60) + '秒';
-  return Math.floor(s / 3600) + '时' + Math.floor((s % 3600) / 60) + '分';
+  if (s < 60) return Math.floor(s) + 's';
+  if (s < 3600) return Math.floor(s / 60) + 'm ' + Math.floor(s % 60) + 's';
+  return Math.floor(s / 3600) + 'h ' + Math.floor((s % 3600) / 60) + 'm';
 }
 function fmtMem(b) { return (b / 1024 / 1024).toFixed(1) + ' MB'; }
 
 function showLoading(container) {
   if (typeof container === 'string') container = qs(container);
-  container.innerHTML = '<div class="loading">加载中...</div>';
+  container.innerHTML = '<div class="loading">Loading...</div>';
 }
 function showEmpty(container, msg) {
   if (typeof container === 'string') container = qs(container);
-  container.innerHTML = '<div class="empty">' + esc(msg || '暂无数据') + '</div>';
+  container.innerHTML = '<div class="empty">' + esc(msg || 'No data') + '</div>';
 }
 function showError(container, msg) {
   if (typeof container === 'string') container = qs(container);
-  container.innerHTML = '<div class="empty" style="color:#a4262c">' + esc(msg || '未知错误') + '</div>';
+  container.innerHTML = '<div class="empty" style="color:#a4262c">' + esc(msg || 'Unknown error') + '</div>';
 }
 function badge(type, text) {
   return '<span class="bg-' + type + '">' + esc(text) + '</span>';
 }
 function permBadge(p) {
-  return badge(p === 'admin' ? 'admin' : 'user', p === 'admin' ? '管理员' : '用户');
+  return badge(p === 'admin' ? 'admin' : 'user', p === 'admin' ? 'Admin' : 'User');
 }
 
 // ═══════════════════════════════════════════════
@@ -276,18 +276,18 @@ class App {
     const password = qs('loginPass').value;
     if (!username || !password) return;
     const btn = qs('loginBtn');
-    btn.disabled = true; btn.textContent = '登录中...';
+    btn.disabled = true; btn.textContent = 'Logging in...';
     qs('loginError').style.display = 'none';
     try {
       const state = await this.auth.login(username, password);
       Object.assign(this.state, state);
       this.showDashboard();
     } catch (e) {
-      qs('loginError').textContent = '登录失败: ' + e.message;
+      qs('loginError').textContent = 'Login failed: ' + e.message;
       qs('loginError').style.display = 'block';
     } finally {
       btn.disabled = false;
-      btn.textContent = '登录';
+      btn.textContent = 'Login';
     }
   }
 
@@ -296,7 +296,7 @@ class App {
     qs('dashboard').style.display = 'block';
     qs('userNameDisplay').textContent = this.state.userName;
     qs('userPermBadge').className = this.state.perm === 'admin' ? 'bg-admin' : 'bg-user';
-    qs('userPermBadge').textContent = this.state.perm === 'admin' ? '管理员' : '用户';
+    qs('userPermBadge').textContent = this.state.perm === 'admin' ? 'Admin' : 'User';
     qs('userInfo').style.display = 'flex';
     this.renderTabs();
   }
@@ -304,15 +304,15 @@ class App {
   renderTabs() {
     const isAdmin = this.state.perm === 'admin';
     const tabs = isAdmin ? [
-      { id: 'overview', label: '概览' },
-      { id: 'rooms', label: '房间管理' },
-      { id: 'conversations', label: '对话查看' },
-      { id: 'create-chat', label: '创建聊天' },
-      { id: 'proxy', label: '代理发送' },
-      { id: 'profile', label: '我的资料' },
+      { id: 'overview', label: 'Overview' },
+      { id: 'rooms', label: 'Rooms' },
+      { id: 'conversations', label: 'Conversations' },
+      { id: 'create-chat', label: 'Create Chat' },
+      { id: 'proxy', label: 'Proxy Send' },
+      { id: 'profile', label: 'My Profile' },
     ] : [
-      { id: 'profile', label: '我的资料' },
-      { id: 'my-rooms', label: '我的房间' },
+      { id: 'profile', label: 'My Profile' },
+      { id: 'my-rooms', label: 'My Rooms' },
     ];
 
     const bar = qs('tabBar');
@@ -356,8 +356,8 @@ class App {
         this.api.get('/api/v1/metrics').catch(() => null),
       ]).then(([h, r, m]) => {
         const badge = qs('statusBadge');
-        if (h && r && r.ok) { badge.textContent = '运行中'; badge.className = 'bg-ok'; }
-        else { badge.textContent = '异常'; badge.className = 'bg-err'; }
+        if (h && r && r.ok) { badge.textContent = 'Running'; badge.className = 'bg-ok'; }
+        else { badge.textContent = 'Unhealthy'; badge.className = 'bg-err'; }
         const su = qs('statUptime');
         if (su && m) { qs('statUptime').textContent = fmtUptime(m.uptime); qs('statMemory').textContent = fmtMem(m.memory.rss); }
       });
@@ -376,15 +376,15 @@ class OverviewPage {
   mount() {
     this.container.innerHTML =
       '<div class="stat-row mb">' +
-        '<div class="stat"><div class="value" id="statRooms">-</div><div class="label">房间数</div></div>' +
-        '<div class="stat"><div class="value" id="statMembers">-</div><div class="label">成员关系</div></div>' +
-        '<div class="stat"><div class="value" id="statMessages">-</div><div class="label">冷消息</div></div>' +
-        '<div class="stat"><div class="value" id="statOnline">-</div><div class="label">在线用户</div></div>' +
-        '<div class="stat"><div class="value" id="statUptime">-</div><div class="label">运行时间</div></div>' +
-        '<div class="stat"><div class="value" id="statMemory">-</div><div class="label">内存</div></div>' +
+        '<div class="stat"><div class="value" id="statRooms">-</div><div class="label">Rooms</div></div>' +
+        '<div class="stat"><div class="value" id="statMembers">-</div><div class="label">Memberships</div></div>' +
+        '<div class="stat"><div class="value" id="statMessages">-</div><div class="label">Cold Messages</div></div>' +
+        '<div class="stat"><div class="value" id="statOnline">-</div><div class="label">Online Users</div></div>' +
+        '<div class="stat"><div class="value" id="statUptime">-</div><div class="label">Uptime</div></div>' +
+        '<div class="stat"><div class="value" id="statMemory">-</div><div class="label">Memory</div></div>' +
       '</div>' +
-      '<div class="card"><h3>服务状态</h3><div id="healthInfo"><div class="loading">加载中...</div></div></div>' +
-      '<div class="card"><h3>就绪检查</h3><div id="readyInfo"><div class="loading">加载中...</div></div></div>';
+      '<div class="card"><h3>Service Status</h3><div id="healthInfo"><div class="loading">Loading...</div></div></div>' +
+      '<div class="card"><h3>Readiness</h3><div id="readyInfo"><div class="loading">Loading...</div></div></div>';
     this._load();
     this._timer = setInterval(() => this._load(), 15000);
   }
@@ -397,10 +397,10 @@ class OverviewPage {
         app.api.get('/api/v1/metrics').catch(() => null),
         app.api.get('/api/v1/admin/stats').catch(() => null),
       ]);
-      if (h) qs('healthInfo').innerHTML = '<p>状态: ' + badge('ok', 'OK') + ' | 服务: ' + esc(h.service) + '</p>';
-      else qs('healthInfo').innerHTML = '<p style="color:#a4262c">无法连接健康检查</p>';
-      if (r) qs('readyInfo').innerHTML = '<p>数据库: ' + badge(r.db === 'ok' ? 'ok' : 'err', r.db) + ' | Redis: ' + badge(r.redis === 'ok' ? 'ok' : 'err', r.redis || '未知') + '</p>';
-      else qs('readyInfo').innerHTML = '<p style="color:#a4262c">无法连接就绪检查</p>';
+      if (h) qs('healthInfo').innerHTML = '<p>Status: ' + badge('ok', 'OK') + ' | Service: ' + esc(h.service) + '</p>';
+      else qs('healthInfo').innerHTML = '<p style="color:#a4262c">Cannot reach health check</p>';
+      if (r) qs('readyInfo').innerHTML = '<p>Database: ' + badge(r.db === 'ok' ? 'ok' : 'err', r.db) + ' | Redis: ' + badge(r.redis === 'ok' ? 'ok' : 'err', r.redis || 'unknown') + '</p>';
+      else qs('readyInfo').innerHTML = '<p style="color:#a4262c">Cannot reach readiness check</p>';
       if (m) { qs('statUptime').textContent = fmtUptime(m.uptime); qs('statMemory').textContent = fmtMem(m.memory.rss); }
       if (stats && stats.ok) {
         qs('statRooms').textContent = stats.stats.rooms;
@@ -408,7 +408,7 @@ class OverviewPage {
         qs('statMessages').textContent = stats.stats.coldMessages;
         qs('statOnline').textContent = stats.stats.onlineUsers;
       }
-    } catch (e) { if (e.name !== 'AbortError') qs('healthInfo').innerHTML = '<p style="color:#a4262c">无法连接: ' + esc(e.message) + '</p>'; }
+    } catch (e) { if (e.name !== 'AbortError') qs('healthInfo').innerHTML = '<p style="color:#a4262c">Cannot reach service: ' + esc(e.message) + '</p>'; }
   }
 }
 
@@ -418,11 +418,11 @@ class RoomsPage {
     this.container.innerHTML =
       '<div class="card">' +
         '<div class="flex mb">' +
-          '<h3 style="margin:0">房间列表</h3>' +
-          '<div class="search"><input id="roomSearch" placeholder="搜索..." oninput="app._currentPage._filter()"></div>' +
-          '<button class="primary small" onclick="app._currentPage._load()">刷新</button>' +
+          '<h3 style="margin:0">Room List</h3>' +
+          '<div class="search"><input id="roomSearch" placeholder="Search..." oninput="app._currentPage._filter()"></div>' +
+          '<button class="primary small" onclick="app._currentPage._load()">Refresh</button>' +
         '</div>' +
-        '<div id="roomsTable"><div class="loading">加载中...</div></div>' +
+        '<div id="roomsTable"><div class="loading">Loading...</div></div>' +
       '</div>' +
       '<div class="card" id="roomMemberCard" style="display:none"><div id="roomMemberContent"></div></div>';
     this._load();
@@ -446,13 +446,13 @@ class RoomsPage {
   _render(rooms) {
     const table = qs('roomsTable');
     if (!rooms.length) { showEmpty(table); return; }
-    let h = '<table><tr><th>ID</th><th>类型</th><th>名称</th><th>创建者</th><th>创建时间</th><th>操作</th></tr>';
+    let h = '<table><tr><th>ID</th><th>Type</th><th>Name</th><th>Creator</th><th>Created</th><th>Actions</th></tr>';
     rooms.forEach(r => {
       h += '<tr><td><code>' + esc(r.id) + '</code></td><td>' + badge('scope', esc(r.type || 'group')) + '</td>' +
         '<td>' + esc(r.name || '-') + '</td><td><code>' + esc(r.creatorId) + '</code></td>' +
         '<td>' + fmtTime(r.createdAt) + '</td>' +
-        '<td><button class="sec small" onclick="app._currentPage._viewMembers(\'' + r.id + '\')">成员</button>' +
-        '<button class="danger small" onclick="app._currentPage._delete(\'' + r.id + '\')">删除</button></td></tr>';
+        '<td><button class="sec small" onclick="app._currentPage._viewMembers(\'' + r.id + '\')">Members</button>' +
+        '<button class="danger small" onclick="app._currentPage._delete(\'' + r.id + '\')">Delete</button></td></tr>';
     });
     table.innerHTML = h + '</table>';
   }
@@ -460,18 +460,18 @@ class RoomsPage {
     const card = qs('roomMemberCard');
     card.style.display = 'block';
     const content = qs('roomMemberContent');
-    content.innerHTML = '<div class="loading">加载中...</div>';
+    content.innerHTML = '<div class="loading">Loading...</div>';
     try {
       const d = await app.api.get('/api/v1/admin/rooms/' + id + '/members');
       const members = d.members || [];
-      let h = '<h3>房间成员 - <code>' + esc(id) + '</code>' +
-        ' <button class="sec small" onclick="app._currentPage._addMember(\'' + id + '\')">+ 添加</button></h3>';
-      if (!members.length) { h += '<div class="empty">无成员</div>'; }
+      let h = '<h3>Room Members - <code>' + esc(id) + '</code>' +
+        ' <button class="sec small" onclick="app._currentPage._addMember(\'' + id + '\')">+ Add</button></h3>';
+      if (!members.length) { h += '<div class="empty">No members</div>'; }
       else {
-        h += '<table><tr><th>用户ID</th><th>加入时间</th><th>操作</th></tr>';
+        h += '<table><tr><th>User ID</th><th>Joined At</th><th>Actions</th></tr>';
         members.forEach(m => {
           h += '<tr><td><code>' + esc(m.userId) + '</code></td><td>' + fmtTime(m.joinedAt) + '</td>' +
-            '<td><button class="danger small" onclick="app._currentPage._removeMember(\'' + id + '\',\'' + m.userId + '\')">移除</button></td></tr>';
+            '<td><button class="danger small" onclick="app._currentPage._removeMember(\'' + id + '\',\'' + m.userId + '\')">Remove</button></td></tr>';
         });
         h += '</table>';
       }
@@ -479,25 +479,25 @@ class RoomsPage {
     } catch (e) { showError(content, e.message); }
   }
   async _addMember(roomId) {
-    const uid = prompt('输入用户ID:');
+    const uid = prompt('Enter user ID:');
     if (!uid) return;
     try {
       await app.api.post('/api/v1/admin/rooms/' + roomId + '/members', { userId: uid });
-      toast('成员已添加', 'success');
+      toast('Member added', 'success');
       this._viewMembers(roomId);
     } catch (e) { toast(e.message, 'error'); }
   }
   async _removeMember(roomId, userId) {
-    if (!confirm('确认移除成员 ' + userId + '?')) return;
+    if (!confirm('Remove member ' + userId + '?')) return;
     try {
       await app.api.del('/api/v1/admin/rooms/' + roomId + '/members/' + userId);
-      toast('成员已移除', 'success');
+      toast('Member removed', 'success');
       this._viewMembers(roomId);
     } catch (e) { toast(e.message, 'error'); }
   }
   async _delete(id) {
-    if (!confirm('确认删除房间 ' + id + '? 所有消息将被清除！')) return;
-    try { await app.api.del('/api/v1/admin/rooms/' + id); toast('房间已删除', 'success'); this._load(); }
+    if (!confirm('Delete room ' + id + '? All its messages will be cleared!')) return;
+    try { await app.api.del('/api/v1/admin/rooms/' + id); toast('Room deleted', 'success'); this._load(); }
     catch (e) { toast(e.message, 'error'); }
   }
 }
@@ -508,22 +508,22 @@ class ConversationsPage {
     this.container.innerHTML =
       '<div class="card">' +
         '<div class="flex mb">' +
-          '<h3 style="margin:0">对话查看</h3>' +
+          '<h3 style="margin:0">Conversation Viewer</h3>' +
           '<div class="row" style="margin:0;flex:1;max-width:400px">' +
-            '<label style="min-width:50px">房间ID</label>' +
-            '<input id="convRoomId" placeholder="输入房间ID" style="min-width:100px">' +
-            '<button class="primary small" onclick="app._currentPage._load()">查看</button>' +
+            '<label style="min-width:50px">Room ID</label>' +
+            '<input id="convRoomId" placeholder="Enter room ID" style="min-width:100px">' +
+            '<button class="primary small" onclick="app._currentPage._load()">View</button>' +
           '</div>' +
         '</div>' +
-        '<div id="convMessages"><div class="empty">输入房间ID后查看对话</div></div>' +
+        '<div id="convMessages"><div class="empty">Enter a room ID to view the conversation</div></div>' +
         '<div id="convMore" class="mt" style="text-align:center;display:none">' +
-          '<button class="sec small" onclick="app._currentPage._loadMore()">加载更多</button></div>' +
+          '<button class="sec small" onclick="app._currentPage._loadMore()">Load more</button></div>' +
       '</div>';
   }
   destroy() { this._cursor = null; }
   async _load() {
     const roomId = qs('convRoomId').value.trim();
-    if (!roomId) { qs('convMessages').innerHTML = '<div class="empty">请输入房间ID</div>'; return; }
+    if (!roomId) { qs('convMessages').innerHTML = '<div class="empty">Please enter a room ID</div>'; return; }
     this._roomId = roomId;
     this._cursor = null;
     const container = qs('convMessages');
@@ -538,7 +538,7 @@ class ConversationsPage {
     const items = d.items || [];
     this._cursor = d.cursor;
     qs('convMore').style.display = d.hasMore ? 'block' : 'none';
-    if (!items.length) { container.innerHTML = '<div class="empty">暂无消息</div>'; return; }
+    if (!items.length) { container.innerHTML = '<div class="empty">No messages</div>'; return; }
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'max-height:500px;overflow-y:auto';
     items.forEach(m => {
@@ -578,11 +578,11 @@ class CreateChatPage {
     this.container.innerHTML =
       '<div class="card">' +
         '<div class="flex mb">' +
-          '<h3 style="margin:0">创建聊天</h3>' +
-          '<button class="sec small" onclick="app._currentPage._switch(\'direct\')">私聊</button>' +
-          '<button class="sec small" onclick="app._currentPage._switch(\'group\')">群组</button>' +
+          '<h3 style="margin:0">Create Chat</h3>' +
+          '<button class="sec small" onclick="app._currentPage._switch(\'direct\')">Direct</button>' +
+          '<button class="sec small" onclick="app._currentPage._switch(\'group\')">Group</button>' +
         '</div>' +
-        '<div id="createChatContent"><div class="loading">加载中...</div></div>' +
+        '<div id="createChatContent"><div class="loading">Loading...</div></div>' +
       '</div>';
     this._switch('direct');
   }
@@ -595,40 +595,40 @@ class CreateChatPage {
   }
   _showDirectForm(content) {
     content.innerHTML =
-      '<h3>创建私聊</h3>' +
-      '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">使用当前登录用户创建与指定用户的私聊。</p>' +
-      '<div class="row"><label>对方用户ID</label><input id="directTarget" placeholder="目标用户ID"></div>' +
-      '<button class="primary small" onclick="app._currentPage._createDirect()">创建私聊</button>' +
-      '<pre id="directResult" class="mt">等待操作...</pre>';
+      '<h3>Create Direct Room</h3>' +
+      '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">Create a direct room between the current user and the specified user.</p>' +
+      '<div class="row"><label>Target User ID</label><input id="directTarget" placeholder="Target user ID"></div>' +
+      '<button class="primary small" onclick="app._currentPage._createDirect()">Create Direct Room</button>' +
+      '<pre id="directResult" class="mt">Awaiting action...</pre>';
   }
   async _createDirect() {
     const target = qs('directTarget').value.trim();
-    if (!target) { qs('directResult').textContent = '请输入目标用户ID'; return; }
-    qs('directResult').textContent = '创建中...';
+    if (!target) { qs('directResult').textContent = 'Please enter the target user ID'; return; }
+    qs('directResult').textContent = 'Creating...';
     try {
       const d = await app.api.post('/api/v1/rooms/direct', { targetUserId: target });
       qs('directResult').textContent = JSON.stringify(d.room, null, 2);
-      toast('私聊创建成功: ' + d.room.id, 'success');
+      toast('Direct room created: ' + d.room.id, 'success');
     } catch (e) { qs('directResult').textContent = 'Error: ' + e.message; }
   }
   _showGroupForm(content) {
     content.innerHTML =
-      '<h3>创建群组</h3>' +
-      '<div class="row"><label>群名称</label><input id="groupName" placeholder="群组名称"></div>' +
-      '<div class="row"><label>成员ID</label><input id="groupMembers" placeholder="user1,user2,user3" style="font-family:monospace"></div>' +
-      '<button class="primary small" onclick="app._currentPage._createGroup()">创建群组</button>' +
-      '<pre id="groupResult" class="mt">等待操作...</pre>';
+      '<h3>Create Group Room</h3>' +
+      '<div class="row"><label>Group Name</label><input id="groupName" placeholder="Group name"></div>' +
+      '<div class="row"><label>Member IDs</label><input id="groupMembers" placeholder="user1,user2,user3" style="font-family:monospace"></div>' +
+      '<button class="primary small" onclick="app._currentPage._createGroup()">Create Group Room</button>' +
+      '<pre id="groupResult" class="mt">Awaiting action...</pre>';
   }
   async _createGroup() {
     const name = qs('groupName').value.trim();
     const membersStr = qs('groupMembers').value.trim();
-    if (!name) { qs('groupResult').textContent = '请输入群名称'; return; }
+    if (!name) { qs('groupResult').textContent = 'Please enter a group name'; return; }
     const memberIds = membersStr ? membersStr.split(',').map(s => s.trim()).filter(Boolean) : [];
-    qs('groupResult').textContent = '创建中...';
+    qs('groupResult').textContent = 'Creating...';
     try {
       const d = await app.api.post('/api/v1/rooms/group', { name, memberIds });
       qs('groupResult').textContent = JSON.stringify(d.room, null, 2);
-      toast('群组创建成功: ' + d.room.id, 'success');
+      toast('Group room created: ' + d.room.id, 'success');
     } catch (e) { qs('groupResult').textContent = 'Error: ' + e.message; }
   }
 }
@@ -638,13 +638,13 @@ class ProxySendPage {
   mount() {
     this.container.innerHTML =
       '<div class="card">' +
-        '<h3>代理发送消息</h3>' +
-        '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">以指定用户身份发送消息到指定房间。</p>' +
-        '<div class="row"><label>房间ID</label><input id="psRoomId" placeholder="房间ID"></div>' +
-        '<div class="row"><label>发送者ID</label><input id="psSenderId" placeholder="用户ID"></div>' +
-        '<div class="row"><label>消息内容</label><textarea id="psContent" rows="3" placeholder="消息内容..."></textarea></div>' +
-        '<button class="primary small" onclick="app._currentPage._send()">发送</button>' +
-        '<pre id="psResult" class="mt">等待操作...</pre>' +
+        '<h3>Proxy Send Message</h3>' +
+        '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">Send a message to a room as the specified user.</p>' +
+        '<div class="row"><label>Room ID</label><input id="psRoomId" placeholder="Room ID"></div>' +
+        '<div class="row"><label>Sender ID</label><input id="psSenderId" placeholder="User ID"></div>' +
+        '<div class="row"><label>Content</label><textarea id="psContent" rows="3" placeholder="Message content..."></textarea></div>' +
+        '<button class="primary small" onclick="app._currentPage._send()">Send</button>' +
+        '<pre id="psResult" class="mt">Awaiting action...</pre>' +
       '</div>';
   }
   destroy() {}
@@ -652,12 +652,12 @@ class ProxySendPage {
     const roomId = qs('psRoomId').value.trim();
     const senderId = qs('psSenderId').value.trim();
     const content = qs('psContent').value.trim();
-    if (!roomId || !senderId || !content) { qs('psResult').textContent = '请填写完整信息'; return; }
-    qs('psResult').textContent = '发送中...';
+    if (!roomId || !senderId || !content) { qs('psResult').textContent = 'Please fill in all fields'; return; }
+    qs('psResult').textContent = 'Sending...';
     try {
       const d = await app.api.post('/api/v1/admin/rooms/' + roomId + '/messages', { senderId, content, type: 'text' });
       qs('psResult').textContent = JSON.stringify(d.message, null, 2);
-      toast('消息已发送', 'success');
+      toast('Message sent', 'success');
       qs('psContent').value = '';
     } catch (e) { qs('psResult').textContent = 'Error: ' + e.message; }
   }
@@ -666,7 +666,7 @@ class ProxySendPage {
 class ProfilePage {
   constructor(container) { this.container = container; }
   mount() {
-    this.container.innerHTML = '<div class="card" id="profileCard"><div class="loading">加载中...</div></div>';
+    this.container.innerHTML = '<div class="card" id="profileCard"><div class="loading">Loading...</div></div>';
     this._load();
   }
   destroy() {}
@@ -676,13 +676,13 @@ class ProfilePage {
       const d = await app.userApi.get('/api/v1/users/me');
       if (!d.ok) throw new Error(d.error);
       const u = d.user;
-      card.innerHTML = '<h3>我的资料</h3>' +
+      card.innerHTML = '<h3>My Profile</h3>' +
         '<table><tr><td style="width:90px">ID</td><td><code>' + esc(u.id) + '</code></td></tr>' +
-        '<tr><td>全局名</td><td>' + esc(u.globalName) + '</td></tr>' +
-        '<tr><td>权限</td><td>' + permBadge(u.permission) + '</td></tr>' +
-        '<tr><td>在线</td><td>' + (u.online ? badge('ok', '在线') : badge('err', '离线')) + '</td></tr>' +
-        '<tr><td>注册时间</td><td>' + new Date(u.createdAt).toLocaleString() + '</td></tr>' +
-        '<tr><td>最后在线</td><td>' + (u.lastOnlineAt ? new Date(u.lastOnlineAt).toLocaleString() : '-') + '</td></tr>' +
+        '<tr><td>Global Name</td><td>' + esc(u.globalName) + '</td></tr>' +
+        '<tr><td>Permission</td><td>' + permBadge(u.permission) + '</td></tr>' +
+        '<tr><td>Online</td><td>' + (u.online ? badge('ok', 'Online') : badge('err', 'Offline')) + '</td></tr>' +
+        '<tr><td>Registered At</td><td>' + new Date(u.createdAt).toLocaleString() + '</td></tr>' +
+        '<tr><td>Last Online</td><td>' + (u.lastOnlineAt ? new Date(u.lastOnlineAt).toLocaleString() : '-') + '</td></tr>' +
         '<tr><td>appNames</td><td><code>' + esc(JSON.stringify(u.appNames)) + '</code></td></tr></table>';
     } catch (e) { showError(card, e.message); }
   }
@@ -692,8 +692,8 @@ class MyRoomsPage {
   constructor(container) { this.container = container; }
   mount() {
     this.container.innerHTML =
-      '<div class="card"><h3>我的房间</h3>' +
-      '<p style="font-size:12px;color:var(--text2)">普通用户的房间功能需要从客户端应用访问。此处显示管理员控制台。</p></div>';
+      '<div class="card"><h3>My Rooms</h3>' +
+      '<p style="font-size:12px;color:var(--text2)">Room features for regular users are accessed from the client app. This page shows the admin console.</p></div>';
   }
   destroy() {}
 }

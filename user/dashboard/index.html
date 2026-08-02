@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -68,21 +68,21 @@ code{font-family:monospace;font-size:11px;background:#f5f5f5;padding:1px 4px;bor
 <div class="header">
   <h1>Yingo User Service</h1>
   <span class="badge">v1</span>
-  <span id="statusBadge" class="bg-err">检查中...</span>
+  <span id="statusBadge" class="bg-err">Checking...</span>
   <div class="user-info" id="userInfo" style="display:none">
     <span id="userNameDisplay"></span>
     <span id="userPermBadge"></span>
-    <button class="sec" onclick="app.auth.logout()" style="padding:3px 10px">退出</button>
+    <button class="sec" onclick="app.auth.logout()" style="padding:3px 10px">Logout</button>
   </div>
 </div>
 
 <div class="container">
   <div id="loginPage" style="max-width:360px;margin:50px auto">
     <div class="card" style="padding:28px">
-      <b style="font-size:16px;display:block;text-align:center;margin-bottom:16px">用户服务面板登录</b>
-      <div class="row"><input id="loginUser" placeholder="用户名" autocomplete="username"></div>
-      <div class="row"><input id="loginPass" type="password" placeholder="密码" autocomplete="current-password"></div>
-      <button class="primary" onclick="app.login()" id="loginBtn" style="width:100%;padding:9px">登录</button>
+      <b style="font-size:16px;display:block;text-align:center;margin-bottom:16px">User Service Dashboard Login</b>
+      <div class="row"><input id="loginUser" placeholder="Username" autocomplete="username"></div>
+      <div class="row"><input id="loginPass" type="password" placeholder="Password" autocomplete="current-password"></div>
+      <button class="primary" onclick="app.login()" id="loginBtn" style="width:100%;padding:9px">Login</button>
       <p id="loginError" class="mt" style="color:#a4262c;font-size:12px;text-align:center;display:none"></p>
     </div>
   </div>
@@ -168,15 +168,15 @@ class ApiClient {
       try { data = await r.json(); } catch { data = null; }
       if (r.status === 401 && app.state.token) {
         app.auth.logout();
-        throw new ApiError('登录已过期，请重新登录', 401, data);
+        throw new ApiError('Session expired, please log in again', 401, data);
       }
       if (!r.ok) throw new ApiError(data?.error || r.statusText, r.status, data);
       return data;
     }).catch(e => {
       clearTimeout(timeout);
-      if (e.name === 'AbortError') throw new ApiError('请求超时', 0, null);
+      if (e.name === 'AbortError') throw new ApiError('Request timeout', 0, null);
       if (e instanceof ApiError) throw e;
-      throw new ApiError('网络错误: ' + e.message, 0, null);
+      throw new ApiError('Network error: ' + e.message, 0, null);
     });
   }
 
@@ -244,16 +244,16 @@ class AuthService {
 function fmtTime(ms) {
   if (!ms) return '-';
   const diff = Date.now() - ms, abs = Math.abs(diff), s = Math.floor(abs / 1000);
-  if (s < 60) return Math.floor(s) + (diff > 0 ? '秒前' : '秒后');
-  if (s < 3600) return Math.floor(s / 60) + (diff > 0 ? '分钟前' : '分钟后');
-  if (s < 86400) return Math.floor(s / 3600) + (diff > 0 ? '小时前' : '小时后');
-  if (s < 2592000) return Math.floor(s / 86400) + (diff > 0 ? '天前' : '天后');
-  return new Date(ms).toLocaleDateString('zh-CN');
+  if (s < 60) return Math.floor(s) + (diff > 0 ? 's ago' : 'in ' + Math.floor(s) + 's');
+  if (s < 3600) return Math.floor(s / 60) + (diff > 0 ? 'min ago' : 'min ahead');
+  if (s < 86400) return Math.floor(s / 3600) + (diff > 0 ? 'h ago' : 'h ahead');
+  if (s < 2592000) return Math.floor(s / 86400) + (diff > 0 ? 'd ago' : 'd ahead');
+  return new Date(ms).toLocaleString();
 }
 function fmtUptime(s) {
-  if (s < 60) return Math.floor(s) + '秒';
-  if (s < 3600) return Math.floor(s / 60) + '分' + Math.floor(s % 60) + '秒';
-  return Math.floor(s / 3600) + '时' + Math.floor((s % 3600) / 60) + '分';
+  if (s < 60) return Math.floor(s) + 's';
+  if (s < 3600) return Math.floor(s / 60) + 'm ' + Math.floor(s % 60) + 's';
+  return Math.floor(s / 3600) + 'h ' + Math.floor((s % 3600) / 60) + 'm';
 }
 function fmtMem(b) { return (b / 1024 / 1024).toFixed(1) + ' MB'; }
 
@@ -262,21 +262,21 @@ function fmtMem(b) { return (b / 1024 / 1024).toFixed(1) + ' MB'; }
 // ═══════════════════════════════════════════════
 function showLoading(container) {
   if (typeof container === 'string') container = qs(container);
-  container.innerHTML = '<div class="loading">加载中...</div>';
+  container.innerHTML = '<div class="loading">Loading...</div>';
 }
 function showEmpty(container, msg) {
   if (typeof container === 'string') container = qs(container);
-  container.innerHTML = '<div class="empty">' + esc(msg || '暂无数据') + '</div>';
+  container.innerHTML = '<div class="empty">' + esc(msg || 'No data') + '</div>';
 }
 function showError(container, msg) {
   if (typeof container === 'string') container = qs(container);
-  container.innerHTML = '<div class="empty" style="color:#a4262c">' + esc(msg || '未知错误') + '</div>';
+  container.innerHTML = '<div class="empty" style="color:#a4262c">' + esc(msg || 'Unknown error') + '</div>';
 }
 function badge(type, text) {
   return '<span class="bg-' + type + '">' + esc(text) + '</span>';
 }
 function permBadge(p) {
-  return badge(p === 'admin' ? 'admin' : 'user', p === 'admin' ? '管理员' : '用户');
+  return badge(p === 'admin' ? 'admin' : 'user', p === 'admin' ? 'Admin' : 'User');
 }
 
 // ═══════════════════════════════════════════════
@@ -307,18 +307,18 @@ class App {
     const password = qs('loginPass').value;
     if (!username || !password) return;
     const btn = qs('loginBtn');
-    btn.disabled = true; btn.textContent = '登录中...';
+    btn.disabled = true; btn.textContent = 'Logging in...';
     qs('loginError').style.display = 'none';
     try {
       const state = await this.auth.login(username, password);
       Object.assign(this.state, state);
       this.showDashboard();
     } catch (e) {
-      qs('loginError').textContent = '登录失败: ' + e.message;
+      qs('loginError').textContent = 'Login failed: ' + e.message;
       qs('loginError').style.display = 'block';
     } finally {
       btn.disabled = false;
-      btn.textContent = '登录';
+      btn.textContent = 'Login';
     }
   }
 
@@ -327,7 +327,7 @@ class App {
     qs('dashboard').style.display = 'block';
     qs('userNameDisplay').textContent = this.state.userName;
     qs('userPermBadge').className = this.state.perm === 'admin' ? 'bg-admin' : 'bg-user';
-    qs('userPermBadge').textContent = this.state.perm === 'admin' ? '管理员' : '用户';
+    qs('userPermBadge').textContent = this.state.perm === 'admin' ? 'Admin' : 'User';
     qs('userInfo').style.display = 'flex';
     this.renderTabs();
   }
@@ -335,16 +335,16 @@ class App {
   renderTabs() {
     const isAdmin = this.state.perm === 'admin';
     const tabs = isAdmin ? [
-      { id: 'overview', label: '概览' },
-      { id: 'users', label: '用户管理' },
-      { id: 'tokens', label: 'Token管理' },
-      { id: 'apikeys', label: 'API密钥' },
-      { id: 'chat-proxy', label: '聊天代理' },
-      { id: 'profile', label: '我的资料' },
+      { id: 'overview', label: 'Overview' },
+      { id: 'users', label: 'Users' },
+      { id: 'tokens', label: 'Tokens' },
+      { id: 'apikeys', label: 'API Keys' },
+      { id: 'chat-proxy', label: 'Chat Proxy' },
+      { id: 'profile', label: 'My Profile' },
     ] : [
-      { id: 'profile', label: '我的资料' },
-      { id: 'my-tokens', label: '我的Token' },
-      { id: 'my-apikeys', label: '我的密钥' },
+      { id: 'profile', label: 'My Profile' },
+      { id: 'my-tokens', label: 'My Tokens' },
+      { id: 'my-apikeys', label: 'My API Keys' },
     ];
 
     const bar = qs('tabBar');
@@ -397,10 +397,10 @@ class App {
       ]).then(([h, r, m]) => {
         const badge = qs('statusBadge');
         if (h && r && r.ok) {
-          badge.textContent = '运行中';
+          badge.textContent = 'Running';
           badge.className = 'bg-ok';
         } else {
-          badge.textContent = '异常';
+          badge.textContent = 'Unhealthy';
           badge.className = 'bg-err';
         }
         // update overview stats if visible
@@ -425,13 +425,13 @@ class OverviewPage {
   mount() {
     this.container.innerHTML =
       '<div class="stat-row mb">' +
-        '<div class="stat"><div class="value" id="statUsers">-</div><div class="label">用户数</div></div>' +
-        '<div class="stat"><div class="value" id="statTokens">-</div><div class="label">Token数</div></div>' +
-        '<div class="stat"><div class="value" id="statUptime">-</div><div class="label">运行时间</div></div>' +
-        '<div class="stat"><div class="value" id="statMemory">-</div><div class="label">内存使用</div></div>' +
+        '<div class="stat"><div class="value" id="statUsers">-</div><div class="label">Users</div></div>' +
+        '<div class="stat"><div class="value" id="statTokens">-</div><div class="label">Tokens</div></div>' +
+        '<div class="stat"><div class="value" id="statUptime">-</div><div class="label">Uptime</div></div>' +
+        '<div class="stat"><div class="value" id="statMemory">-</div><div class="label">Memory</div></div>' +
       '</div>' +
-      '<div class="card"><h3>服务状态</h3><div id="healthInfo"><div class="loading">加载中...</div></div></div>' +
-      '<div class="card"><h3>就绪检查</h3><div id="readyInfo"><div class="loading">加载中...</div></div></div>';
+      '<div class="card"><h3>Service Status</h3><div id="healthInfo"><div class="loading">Loading...</div></div></div>' +
+      '<div class="card"><h3>Readiness</h3><div id="readyInfo"><div class="loading">Loading...</div></div></div>';
     this._load();
     this._timer = setInterval(() => this._load(), 15000);
   }
@@ -445,16 +445,16 @@ class OverviewPage {
         app.api.get('/api/v1/admin/users').catch(() => null),
         app.api.get('/api/v1/admin/tokens').catch(() => null),
       ]);
-      if (h) qs('healthInfo').innerHTML = '<p>状态: ' + badge('ok', 'OK') + ' | 服务: ' + esc(h.service) + ' | PID: ' + esc(h.pid || '-') + '</p>';
-      else qs('healthInfo').innerHTML = '<p style="color:#a4262c">无法连接健康检查</p>';
-      if (r) qs('readyInfo').innerHTML = '<p>数据库: ' + badge(r.db === 'ok' ? 'ok' : 'err', r.db) + '</p>';
-      else qs('readyInfo').innerHTML = '<p style="color:#a4262c">无法连接就绪检查</p>';
+      if (h) qs('healthInfo').innerHTML = '<p>Status: ' + badge('ok', 'OK') + ' | Service: ' + esc(h.service) + ' | PID: ' + esc(h.pid || '-') + '</p>';
+      else qs('healthInfo').innerHTML = '<p style="color:#a4262c">Cannot reach health check</p>';
+      if (r) qs('readyInfo').innerHTML = '<p>Database: ' + badge(r.db === 'ok' ? 'ok' : 'err', r.db) + '</p>';
+      else qs('readyInfo').innerHTML = '<p style="color:#a4262c">Cannot reach readiness check</p>';
       if (m) { qs('statUptime').textContent = fmtUptime(m.uptime); qs('statMemory').textContent = fmtMem(m.memory.rss); }
       if (ur && ur.ok) qs('statUsers').textContent = ur.total;
       if (tr && tr.ok) qs('statTokens').textContent = tr.total;
     } catch (e) {
       if (e.name !== 'AbortError') {
-        qs('healthInfo').innerHTML = '<p style="color:#a4262c">无法连接服务: ' + esc(e.message) + '</p>';
+        qs('healthInfo').innerHTML = '<p style="color:#a4262c">Cannot reach service: ' + esc(e.message) + '</p>';
       }
     }
   }
@@ -466,12 +466,12 @@ class UsersPage {
     this.container.innerHTML =
       '<div class="card">' +
         '<div class="flex mb">' +
-          '<h3 style="margin:0">用户列表</h3>' +
-          '<div class="search"><input id="userSearch" placeholder="搜索用户名或ID..." oninput="app._currentPage._filter()"></div>' +
-          '<button class="primary small" onclick="app._currentPage._load()">刷新</button>' +
-          '<button class="sec small" onclick="app._currentPage._showCreate()">+ 新建用户</button>' +
+          '<h3 style="margin:0">User List</h3>' +
+          '<div class="search"><input id="userSearch" placeholder="Search username or ID..." oninput="app._currentPage._filter()"></div>' +
+          '<button class="primary small" onclick="app._currentPage._load()">Refresh</button>' +
+          '<button class="sec small" onclick="app._currentPage._showCreate()">+ New User</button>' +
         '</div>' +
-        '<div id="usersTable"><div class="loading">加载中...</div></div>' +
+        '<div id="usersTable"><div class="loading">Loading...</div></div>' +
       '</div>' +
       '<div class="card" id="userDetailCard" style="display:none"><div id="userDetail"></div></div>';
     this._load();
@@ -502,18 +502,18 @@ class UsersPage {
   _render(users) {
     const table = qs('usersTable');
     if (!users.length) { showEmpty(table); return; }
-    let h = '<table><tr><th>ID</th><th>全局名</th><th>权限</th><th>在线</th><th>注册</th><th>操作</th></tr>';
+    let h = '<table><tr><th>ID</th><th>Global Name</th><th>Permission</th><th>Online</th><th>Registered</th><th>Actions</th></tr>';
     users.forEach(u => {
       const isSelf = u.id === app.state.userId;
       h += '<tr><td><code>' + esc(u.id) + '</code></td>' +
         '<td>' + esc(u.globalName) + '</td>' +
         '<td>' + permBadge(u.permission) + '</td>' +
-        '<td>' + (u.online ? badge('ok', '在线') : badge('err', '离线')) + '</td>' +
+        '<td>' + (u.online ? badge('ok', 'Online') : badge('err', 'Offline')) + '</td>' +
         '<td>' + fmtTime(u.createdAt) + '</td>' +
         '<td>' +
-          '<button class="sec small" onclick="app._currentPage._viewDetail(\'' + u.id + '\')">详情</button>' +
-          (u.permission !== 'admin' ? '<button class="sec small" onclick="app._currentPage._promote(\'' + u.id + '\',\'' + esc(u.globalName) + '\')">提升</button>' : '') +
-          (!isSelf ? '<button class="danger small" onclick="app._currentPage._delete(\'' + u.id + '\',\'' + esc(u.globalName) + '\')">删除</button>' : '<span style="color:var(--text2);font-size:11px">当前</span>') +
+          '<button class="sec small" onclick="app._currentPage._viewDetail(\'' + u.id + '\')">Details</button>' +
+          (u.permission !== 'admin' ? '<button class="sec small" onclick="app._currentPage._promote(\'' + u.id + '\',\'' + esc(u.globalName) + '\')">Promote</button>' : '') +
+          (!isSelf ? '<button class="danger small" onclick="app._currentPage._delete(\'' + u.id + '\',\'' + esc(u.globalName) + '\')">Delete</button>' : '<span style="color:var(--text2);font-size:11px">You</span>') +
         '</td></tr>';
     });
     table.innerHTML = h + '</table>';
@@ -523,11 +523,11 @@ class UsersPage {
     const card = qs('userDetailCard');
     card.style.display = 'block';
     qs('userDetail').innerHTML =
-      '<h3>创建新用户</h3>' +
-      '<div class="row"><label>用户名</label><input id="createUsername" placeholder="2-20字符"></div>' +
-      '<div class="row"><label>密码</label><input id="createPassword" type="password" placeholder="至少8位"></div>' +
-      '<div class="row"><label>app_id</label><input id="createAppId" value="chat" placeholder="应用ID"></div>' +
-      '<button class="primary small" onclick="app._currentPage._create()" id="createBtn">创建</button>' +
+      '<h3>Create New User</h3>' +
+      '<div class="row"><label>Username</label><input id="createUsername" placeholder="2-20 characters"></div>' +
+      '<div class="row"><label>Password</label><input id="createPassword" type="password" placeholder="At least 8 characters"></div>' +
+      '<div class="row"><label>app_id</label><input id="createAppId" value="chat" placeholder="App ID"></div>' +
+      '<button class="primary small" onclick="app._currentPage._create()" id="createBtn">Create</button>' +
       '<div id="createResult" class="mt"></div>';
   }
 
@@ -535,55 +535,55 @@ class UsersPage {
     const u = qs('createUsername').value.trim();
     const p = qs('createPassword').value;
     const a = qs('createAppId').value.trim();
-    if (!u || u.length < 2) { qs('createResult').innerHTML = '<div class="bg-err" style="padding:6px 10px">用户名至少2字符</div>'; return; }
-    if (!p || p.length < 8) { qs('createResult').innerHTML = '<div class="bg-err" style="padding:6px 10px">密码至少8位</div>'; return; }
+    if (!u || u.length < 2) { qs('createResult').innerHTML = '<div class="bg-err" style="padding:6px 10px">Username must be at least 2 characters</div>'; return; }
+    if (!p || p.length < 8) { qs('createResult').innerHTML = '<div class="bg-err" style="padding:6px 10px">Password must be at least 8 characters</div>'; return; }
     const btn = qs('createBtn');
-    btn.disabled = true; btn.textContent = '创建中...';
+    btn.disabled = true; btn.textContent = 'Creating...';
     try {
       const d = await app.api.post('/api/v1/register', { username: u, password: p, app_id: a || 'chat' });
-      toast('用户 ' + d.user.globalName + ' 创建成功', 'success');
-      qs('createResult').innerHTML = '<div class="bg-ok" style="padding:6px 10px">创建成功: ' + esc(d.user.globalName) + ' (' + esc(d.user.permission) + ')</div>';
+      toast('User ' + d.user.globalName + ' created', 'success');
+      qs('createResult').innerHTML = '<div class="bg-ok" style="padding:6px 10px">Created: ' + esc(d.user.globalName) + ' (' + esc(d.user.permission) + ')</div>';
       this._load();
     } catch (e) {
       qs('createResult').innerHTML = '<div class="bg-err" style="padding:6px 10px">' + esc(e.message) + '</div>';
-    } finally { btn.disabled = false; btn.textContent = '创建'; }
+    } finally { btn.disabled = false; btn.textContent = 'Create'; }
   }
 
   async _viewDetail(id) {
     const card = qs('userDetailCard');
     card.style.display = 'block';
     const detail = qs('userDetail');
-    detail.innerHTML = '<div class="loading">加载中...</div>';
+    detail.innerHTML = '<div class="loading">Loading...</div>';
     try {
       const d = await app.api.get('/api/v1/admin/users/' + id);
       if (!d.ok) throw new Error(d.error);
       const u = d.user;
       detail.innerHTML =
-        '<h3>用户详情 - ' + esc(u.globalName) + '</h3>' +
+        '<h3>User Details - ' + esc(u.globalName) + '</h3>' +
         '<table><tr><td style="width:90px">ID</td><td><code>' + esc(u.id) + '</code></td></tr>' +
-        '<tr><td>全局名</td><td>' + esc(u.globalName) + '</td></tr>' +
-        '<tr><td>权限</td><td>' + permBadge(u.permission) + '</td></tr>' +
-        '<tr><td>在线</td><td>' + (u.online ? badge('ok', '在线') : badge('err', '离线')) + '</td></tr>' +
-        '<tr><td>注册时间</td><td>' + new Date(u.createdAt).toLocaleString() + '</td></tr>' +
-        '<tr><td>最后在线</td><td>' + (u.lastOnlineAt ? new Date(u.lastOnlineAt).toLocaleString() : '-') + '</td></tr>' +
+        '<tr><td>Global Name</td><td>' + esc(u.globalName) + '</td></tr>' +
+        '<tr><td>Permission</td><td>' + permBadge(u.permission) + '</td></tr>' +
+        '<tr><td>Online</td><td>' + (u.online ? badge('ok', 'Online') : badge('err', 'Offline')) + '</td></tr>' +
+        '<tr><td>Registered At</td><td>' + new Date(u.createdAt).toLocaleString() + '</td></tr>' +
+        '<tr><td>Last Online</td><td>' + (u.lastOnlineAt ? new Date(u.lastOnlineAt).toLocaleString() : '-') + '</td></tr>' +
         '<tr><td>appNames</td><td><code>' + esc(JSON.stringify(u.appNames)) + '</code></td></tr></table>';
     } catch (e) { showError(detail, e.message); }
   }
 
   async _delete(id, name) {
-    if (!confirm('确认删除用户 "' + name + '" (' + id + ')?\n此操作不可撤销，关联的Token和API密钥也将被清除！')) return;
+    if (!confirm('Delete user "' + name + '" (' + id + ')?\nThis cannot be undone. Their tokens and API keys will also be removed!')) return;
     try {
       await app.api.del('/api/v1/admin/users/' + id);
-      toast('用户已删除', 'success');
+      toast('User deleted', 'success');
       this._load();
     } catch (e) { toast(e.message, 'error'); }
   }
 
   async _promote(id, name) {
-    if (!confirm('确认将 "' + name + '" 提升为管理员？')) return;
+    if (!confirm('Promote "' + name + '" to admin?')) return;
     try {
       await app.api.put('/api/v1/admin/users/' + id + '/permission', { permission: 'admin' });
-      toast('已提升为管理员', 'success');
+      toast('Promoted to admin', 'success');
       this._load();
     } catch (e) { toast(e.message, 'error'); }
   }
@@ -594,9 +594,9 @@ class TokensPage {
   mount() {
     this.container.innerHTML =
       '<div class="card">' +
-        '<h3>Token列表</h3>' +
-        '<div class="flex mb"><button class="primary small" onclick="app._currentPage._load()">刷新</button></div>' +
-        '<div id="tokensTable"><div class="loading">加载中...</div></div>' +
+        '<h3>Token List</h3>' +
+        '<div class="flex mb"><button class="primary small" onclick="app._currentPage._load()">Refresh</button></div>' +
+        '<div id="tokensTable"><div class="loading">Loading...</div></div>' +
       '</div>';
     this._load();
   }
@@ -608,7 +608,7 @@ class TokensPage {
       const d = await app.api.get('/api/v1/admin/tokens');
       this._tokens = d.tokens || [];
       if (!this._tokens.length) { showEmpty(table); return; }
-      let h = '<table><tr><th>ID</th><th>用户ID</th><th>权限</th><th>短过期</th><th>长过期</th><th>创建</th><th>状态</th><th>操作</th></tr>';
+      let h = '<table><tr><th>ID</th><th>User ID</th><th>Scopes</th><th>Short Expiry</th><th>Long Expiry</th><th>Created</th><th>Status</th><th>Actions</th></tr>';
       this._tokens.forEach(t => {
         const expired = t.longExpires < Date.now();
         const active = !expired && !t.revokedAt;
@@ -618,15 +618,15 @@ class TokensPage {
           '<td>' + fmtTime(t.shortExpires) + '</td>' +
           '<td>' + fmtTime(t.longExpires) + '</td>' +
           '<td>' + fmtTime(t.createdAt) + '</td>' +
-          '<td>' + (expired ? badge('err', '过期') : (t.revokedAt ? badge('err', '已撤销') : badge('ok', '有效'))) + '</td>' +
-          '<td>' + (active ? '<button class="danger small" onclick="app._currentPage._revoke(\'' + t.id + '\')">撤销</button>' : '<span style="color:var(--text2)">-</span>') + '</td></tr>';
+          '<td>' + (expired ? badge('err', 'Expired') : (t.revokedAt ? badge('err', 'Revoked') : badge('ok', 'Active'))) + '</td>' +
+          '<td>' + (active ? '<button class="danger small" onclick="app._currentPage._revoke(\'' + t.id + '\')">Revoke</button>' : '<span style="color:var(--text2)">-</span>') + '</td></tr>';
       });
       table.innerHTML = h + '</table>';
     } catch (e) { if (e.name !== 'AbortError') showError(table, e.message); }
   }
   async _revoke(id) {
-    if (!confirm('确认撤销 Token ' + id + '?')) return;
-    try { await app.api.del('/api/v1/admin/tokens/' + id); toast('Token已撤销', 'success'); this._load(); }
+    if (!confirm('Revoke token ' + id + '?')) return;
+    try { await app.api.del('/api/v1/admin/tokens/' + id); toast('Token revoked', 'success'); this._load(); }
     catch (e) { toast(e.message, 'error'); }
   }
 }
@@ -636,14 +636,14 @@ class ApiKeysPage {
   mount() {
     this.container.innerHTML =
       '<div class="card">' +
-        '<h3>API密钥管理</h3>' +
-        '<div class="row"><label>名称</label><input id="akName" placeholder="例如: my-app-key"></div>' +
-        '<div class="row"><label>权限</label><input id="akScopes" value="user:read chat:read chat:send"></div>' +
-        '<div class="row"><label>有效期</label><select id="akExpires" style="flex:1;min-width:120px">' +
-          '<option value="7">7天</option><option value="30">30天</option><option value="60" selected>60天</option><option value="90">90天</option><option value="180">180天</option><option value="365">365天</option>' +
+        '<h3>API Key Management</h3>' +
+        '<div class="row"><label>Name</label><input id="akName" placeholder="e.g. my-app-key"></div>' +
+        '<div class="row"><label>Scopes</label><input id="akScopes" value="user:read chat:read chat:send"></div>' +
+        '<div class="row"><label>Expiry</label><select id="akExpires" style="flex:1;min-width:120px">' +
+          '<option value="7">7 days</option><option value="30">30 days</option><option value="60" selected>60 days</option><option value="90">90 days</option><option value="180">180 days</option><option value="365">365 days</option>' +
         '</select></div>' +
-        '<button class="primary small" onclick="app._currentPage._create()">创建密钥</button>' +
-        '<pre id="akResult" class="mt">等待操作...</pre>' +
+        '<button class="primary small" onclick="app._currentPage._create()">Create Key</button>' +
+        '<pre id="akResult" class="mt">Awaiting action...</pre>' +
       '</div>';
   }
   destroy() {}
@@ -651,12 +651,12 @@ class ApiKeysPage {
     const name = qs('akName').value.trim();
     const scopes = qs('akScopes').value.trim().split(/\s+/);
     const expires_days = parseInt(qs('akExpires').value);
-    if (!name) { qs('akResult').textContent = '请输入名称'; return; }
-    qs('akResult').textContent = '创建中...';
+    if (!name) { qs('akResult').textContent = 'Please enter a name'; return; }
+    qs('akResult').textContent = 'Creating...';
     try {
       const d = await app.api.post('/api/v1/api-keys', { name, scopes, expires_days });
-      qs('akResult').textContent = '密钥: ' + d.key + '\n名称: ' + d.name + ' | 有效期: ' + d.expiresDays + '天 | 限流: ' + d.rateLimit + '/时';
-      toast('API密钥创建成功', 'success');
+      qs('akResult').textContent = 'Key: ' + d.key + '\nName: ' + d.name + ' | Expiry: ' + d.expiresDays + ' days | Rate limit: ' + d.rateLimit + '/hr';
+      toast('API key created', 'success');
     } catch (e) { qs('akResult').textContent = 'Error: ' + e.message; }
   }
 }
@@ -668,13 +668,13 @@ class ChatProxyPage {
     this.container.innerHTML =
       '<div class="card">' +
         '<div class="flex mb">' +
-          '<h3 style="margin:0">聊天代理控制台</h3>' +
-          '<button class="sec small" onclick="app._currentPage._switchSub(\'rooms\')">房间列表</button>' +
-          '<button class="sec small" onclick="app._currentPage._switchSub(\'direct\')">创建私聊</button>' +
-          '<button class="sec small" onclick="app._currentPage._switchSub(\'group\')">创建群组</button>' +
-          '<button class="sec small" onclick="app._currentPage._switchSub(\'proxy\')">代理发送</button>' +
+          '<h3 style="margin:0">Chat Proxy Console</h3>' +
+          '<button class="sec small" onclick="app._currentPage._switchSub(\'rooms\')">Room List</button>' +
+          '<button class="sec small" onclick="app._currentPage._switchSub(\'direct\')">Direct Room</button>' +
+          '<button class="sec small" onclick="app._currentPage._switchSub(\'group\')">Group Room</button>' +
+          '<button class="sec small" onclick="app._currentPage._switchSub(\'proxy\')">Proxy Send</button>' +
         '</div>' +
-        '<div id="proxyContent"><div class="loading">加载中...</div></div>' +
+        '<div id="proxyContent"><div class="loading">Loading...</div></div>' +
       '</div>';
     this._switchSub('rooms');
   }
@@ -697,10 +697,10 @@ class ChatProxyPage {
   _showRooms(content) {
     showLoading(content);
     content.innerHTML =
-      '<div class="flex mb"><div class="search"><input id="proxyRoomSearch" placeholder="搜索房间ID..." oninput="app._currentPage._filterRooms()"></div>' +
-      '<button class="primary small" onclick="app._currentPage._loadRooms()">刷新</button></div>' +
-      '<div id="proxyRoomList"><div class="loading">加载中...</div></div>' +
-      '<div id="proxyRoomDetail" style="display:none;margin-top:12px"><h3 class="mb">房间详情</h3><div id="proxyRoomDetailContent"></div></div>';
+      '<div class="flex mb"><div class="search"><input id="proxyRoomSearch" placeholder="Search room ID..." oninput="app._currentPage._filterRooms()"></div>' +
+      '<button class="primary small" onclick="app._currentPage._loadRooms()">Refresh</button></div>' +
+      '<div id="proxyRoomList"><div class="loading">Loading...</div></div>' +
+      '<div id="proxyRoomDetail" style="display:none;margin-top:12px"><h3 class="mb">Room Details</h3><div id="proxyRoomDetailContent"></div></div>';
     this._loadRooms();
   }
 
@@ -719,13 +719,13 @@ class ChatProxyPage {
     const list = qs('proxyRoomList');
     const filtered = q ? this._rooms.filter(r => r.id.toLowerCase().includes(q) || (r.name || '').toLowerCase().includes(q)) : this._rooms;
     if (!filtered.length) { showEmpty(list); return; }
-    let h = '<table><tr><th>ID</th><th>类型</th><th>名称</th><th>创建者</th><th>创建时间</th><th>操作</th></tr>';
+    let h = '<table><tr><th>ID</th><th>Type</th><th>Name</th><th>Creator</th><th>Created</th><th>Actions</th></tr>';
     filtered.forEach(r => {
       h += '<tr><td><code>' + esc(r.id) + '</code></td><td>' + badge('scope', esc(r.type || 'group')) + '</td>' +
         '<td>' + esc(r.name || '-') + '</td><td><code>' + esc(r.creatorId) + '</code></td>' +
         '<td>' + fmtTime(r.createdAt) + '</td>' +
-        '<td><button class="sec small" onclick="app._currentPage._viewRoom(\'' + r.id + '\')">查看</button>' +
-        '<button class="danger small" onclick="app._currentPage._deleteRoom(\'' + r.id + '\')">删除</button></td></tr>';
+        '<td><button class="sec small" onclick="app._currentPage._viewRoom(\'' + r.id + '\')">View</button>' +
+        '<button class="danger small" onclick="app._currentPage._deleteRoom(\'' + r.id + '\')">Delete</button></td></tr>';
     });
     list.innerHTML = h + '</table>';
   }
@@ -734,7 +734,7 @@ class ChatProxyPage {
     const detail = qs('proxyRoomDetail');
     detail.style.display = 'block';
     const content = qs('proxyRoomDetailContent');
-    content.innerHTML = '<div class="loading">加载中...</div>';
+    content.innerHTML = '<div class="loading">Loading...</div>';
     try {
       const [membersData, msgsData] = await Promise.all([
         app.chatApi.get('/api/v1/admin/rooms/' + id + '/members'),
@@ -742,13 +742,13 @@ class ChatProxyPage {
       ]);
       const members = (membersData.members || []).map(m => m.userId).join(', ');
       const msgs = msgsData.items || [];
-      let html = '<p><b>房间ID:</b> <code>' + esc(id) + '</code></p>' +
-        '<p><b>成员:</b> ' + esc(members || '(无)') + '</p>' +
-        '<h4 style="margin:10px 0 6px;font-size:12px;color:var(--text2)">最近消息 (' + msgs.length + '条)</h4>';
+      let html = '<p><b>Room ID:</b> <code>' + esc(id) + '</code></p>' +
+        '<p><b>Members:</b> ' + esc(members || '(none)') + '</p>' +
+        '<h4 style="margin:10px 0 6px;font-size:12px;color:var(--text2)">Recent messages (' + msgs.length + ')</h4>';
       if (!msgs.length) {
-        html += '<div class="empty">暂无消息</div>';
+        html += '<div class="empty">No messages</div>';
       } else {
-        html += '<table><tr><th>发送者</th><th>内容</th><th>时间</th></tr>';
+        html += '<table><tr><th>Sender</th><th>Content</th><th>Time</th></tr>';
         msgs.forEach(m => {
           html += '<tr><td><code>' + esc(m.senderId) + '</code></td><td>' + esc(m.content || '').substring(0, 80) + '</td><td>' + fmtTime(m.sentAt) + '</td></tr>';
         });
@@ -759,78 +759,78 @@ class ChatProxyPage {
   }
 
   async _deleteRoom(id) {
-    if (!confirm('确认删除房间 ' + id + '?')) return;
-    try { await app.chatApi.del('/api/v1/admin/rooms/' + id); toast('房间已删除', 'success'); this._loadRooms(); }
+    if (!confirm('Delete room ' + id + '?')) return;
+    try { await app.chatApi.del('/api/v1/admin/rooms/' + id); toast('Room deleted', 'success'); this._loadRooms(); }
     catch (e) { toast(e.message, 'error'); }
   }
 
   _showDirectForm(content) {
     content.innerHTML =
-      '<h3>强制创建私聊</h3>' +
-      '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">在两个指定用户之间创建私聊房间。管理员不参与对话。</p>' +
-      '<div class="row"><label>用户A</label><input id="directUserA" placeholder="用户ID"></div>' +
-      '<div class="row"><label>用户B</label><input id="directUserB" placeholder="用户ID"></div>' +
-      '<button class="primary small" onclick="app._currentPage._createDirect()">创建私聊</button>' +
-      '<pre id="directResult" class="mt">等待操作...</pre>';
+      '<h3>Force Direct Room</h3>' +
+      '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">Create a direct room between two users. The admin does not participate.</p>' +
+      '<div class="row"><label>User A</label><input id="directUserA" placeholder="User ID"></div>' +
+      '<div class="row"><label>User B</label><input id="directUserB" placeholder="User ID"></div>' +
+      '<button class="primary small" onclick="app._currentPage._createDirect()">Create Direct Room</button>' +
+      '<pre id="directResult" class="mt">Awaiting action...</pre>';
   }
 
   async _createDirect() {
     const a = qs('directUserA').value.trim();
     const b = qs('directUserB').value.trim();
-    if (!a || !b) { qs('directResult').textContent = '请输入两个用户ID'; return; }
-    qs('directResult').textContent = '创建中...';
+    if (!a || !b) { qs('directResult').textContent = 'Please enter both user IDs'; return; }
+    qs('directResult').textContent = 'Creating...';
     try {
       const d = await app.chatApi.post('/api/v1/admin/rooms/direct', { userA: a, userB: b });
       qs('directResult').textContent = JSON.stringify(d.room, null, 2);
-      toast('私聊创建成功: ' + d.room.id, 'success');
+      toast('Direct room created: ' + d.room.id, 'success');
     } catch (e) { qs('directResult').textContent = 'Error: ' + e.message; }
   }
 
   _showGroupForm(content) {
     content.innerHTML =
-      '<h3>强制创建群组</h3>' +
-      '<div class="row"><label>群名称</label><input id="groupName" placeholder="群组名称"></div>' +
-      '<div class="row"><label>创建者</label><input id="groupCreator" placeholder="创建者用户ID"></div>' +
-      '<div class="row"><label>成员ID</label><input id="groupMembers" placeholder="user1,user2,user3" style="font-family:monospace"></div>' +
-      '<button class="primary small" onclick="app._currentPage._createGroup()">创建群组</button>' +
-      '<pre id="groupResult" class="mt">等待操作...</pre>';
+      '<h3>Force Group Room</h3>' +
+      '<div class="row"><label>Group Name</label><input id="groupName" placeholder="Group name"></div>' +
+      '<div class="row"><label>Creator</label><input id="groupCreator" placeholder="Creator user ID"></div>' +
+      '<div class="row"><label>Member IDs</label><input id="groupMembers" placeholder="user1,user2,user3" style="font-family:monospace"></div>' +
+      '<button class="primary small" onclick="app._currentPage._createGroup()">Create Group Room</button>' +
+      '<pre id="groupResult" class="mt">Awaiting action...</pre>';
   }
 
   async _createGroup() {
     const name = qs('groupName').value.trim();
     const creator = qs('groupCreator').value.trim();
     const membersStr = qs('groupMembers').value.trim();
-    if (!name || !creator) { qs('groupResult').textContent = '请输入群名称和创建者ID'; return; }
+    if (!name || !creator) { qs('groupResult').textContent = 'Please enter a group name and creator ID'; return; }
     const memberIds = membersStr ? membersStr.split(',').map(s => s.trim()).filter(Boolean) : [];
-    qs('groupResult').textContent = '创建中...';
+    qs('groupResult').textContent = 'Creating...';
     try {
       const d = await app.chatApi.post('/api/v1/admin/rooms/group', { name, creatorId: creator, memberIds });
       qs('groupResult').textContent = JSON.stringify(d.room, null, 2);
-      toast('群组创建成功: ' + d.room.id, 'success');
+      toast('Group room created: ' + d.room.id, 'success');
     } catch (e) { qs('groupResult').textContent = 'Error: ' + e.message; }
   }
 
   _showProxyForm(content) {
     content.innerHTML =
-      '<h3>代理发送消息</h3>' +
-      '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">以指定用户身份发送消息到指定房间。</p>' +
-      '<div class="row"><label>房间ID</label><input id="proxyRoomId" placeholder="房间ID"></div>' +
-      '<div class="row"><label>发送者ID</label><input id="proxySenderId" placeholder="用户ID"></div>' +
-      '<div class="row"><label>消息内容</label><textarea id="proxyContent" rows="3" placeholder="消息内容..."></textarea></div>' +
-      '<button class="primary small" onclick="app._currentPage._proxySend()">发送</button>' +
-      '<pre id="proxySendResult" class="mt">等待操作...</pre>';
+      '<h3>Proxy Send Message</h3>' +
+      '<p style="font-size:12px;color:var(--text2);margin-bottom:10px">Send a message to a room as the specified user.</p>' +
+      '<div class="row"><label>Room ID</label><input id="proxyRoomId" placeholder="Room ID"></div>' +
+      '<div class="row"><label>Sender ID</label><input id="proxySenderId" placeholder="User ID"></div>' +
+      '<div class="row"><label>Content</label><textarea id="proxyContent" rows="3" placeholder="Message content..."></textarea></div>' +
+      '<button class="primary small" onclick="app._currentPage._proxySend()">Send</button>' +
+      '<pre id="proxySendResult" class="mt">Awaiting action...</pre>';
   }
 
   async _proxySend() {
     const roomId = qs('proxyRoomId').value.trim();
     const senderId = qs('proxySenderId').value.trim();
     const content = qs('proxyContent').value.trim();
-    if (!roomId || !senderId || !content) { qs('proxySendResult').textContent = '请填写完整信息'; return; }
-    qs('proxySendResult').textContent = '发送中...';
+    if (!roomId || !senderId || !content) { qs('proxySendResult').textContent = 'Please fill in all fields'; return; }
+    qs('proxySendResult').textContent = 'Sending...';
     try {
       const d = await app.chatApi.post('/api/v1/admin/rooms/' + roomId + '/messages', { senderId, content, type: 'text' });
       qs('proxySendResult').textContent = JSON.stringify(d.message, null, 2);
-      toast('消息已发送', 'success');
+      toast('Message sent', 'success');
       qs('proxyContent').value = '';
     } catch (e) { qs('proxySendResult').textContent = 'Error: ' + e.message; }
   }
@@ -839,7 +839,7 @@ class ChatProxyPage {
 class ProfilePage {
   constructor(container) { this.container = container; }
   mount() {
-    this.container.innerHTML = '<div class="card" id="profileCard"><div class="loading">加载中...</div></div>';
+    this.container.innerHTML = '<div class="card" id="profileCard"><div class="loading">Loading...</div></div>';
     this._load();
   }
   destroy() {}
@@ -849,13 +849,13 @@ class ProfilePage {
       const d = await app.api.get('/api/v1/users/me');
       if (!d.ok) throw new Error(d.error);
       const u = d.user;
-      card.innerHTML = '<h3>我的资料</h3>' +
+      card.innerHTML = '<h3>My Profile</h3>' +
         '<table><tr><td style="width:90px">ID</td><td><code>' + esc(u.id) + '</code></td></tr>' +
-        '<tr><td>全局名</td><td>' + esc(u.globalName) + '</td></tr>' +
-        '<tr><td>权限</td><td>' + permBadge(u.permission) + '</td></tr>' +
-        '<tr><td>在线</td><td>' + (u.online ? badge('ok', '在线') : badge('err', '离线')) + '</td></tr>' +
-        '<tr><td>注册时间</td><td>' + new Date(u.createdAt).toLocaleString() + '</td></tr>' +
-        '<tr><td>最后在线</td><td>' + (u.lastOnlineAt ? new Date(u.lastOnlineAt).toLocaleString() : '-') + '</td></tr>' +
+        '<tr><td>Global Name</td><td>' + esc(u.globalName) + '</td></tr>' +
+        '<tr><td>Permission</td><td>' + permBadge(u.permission) + '</td></tr>' +
+        '<tr><td>Online</td><td>' + (u.online ? badge('ok', 'Online') : badge('err', 'Offline')) + '</td></tr>' +
+        '<tr><td>Registered At</td><td>' + new Date(u.createdAt).toLocaleString() + '</td></tr>' +
+        '<tr><td>Last Online</td><td>' + (u.lastOnlineAt ? new Date(u.lastOnlineAt).toLocaleString() : '-') + '</td></tr>' +
         '<tr><td>appNames</td><td><code>' + esc(JSON.stringify(u.appNames)) + '</code></td></tr></table>';
     } catch (e) { showError(card, e.message); }
   }
@@ -866,8 +866,8 @@ class MyTokensPage {
   mount() {
     this.container.innerHTML =
       '<div class="card">' +
-        '<div class="flex mb"><h3 style="margin:0">我的Token</h3><button class="primary small" onclick="app._currentPage._load()">刷新</button></div>' +
-        '<div id="myTokensTable"><div class="loading">加载中...</div></div>' +
+        '<div class="flex mb"><h3 style="margin:0">My Tokens</h3><button class="primary small" onclick="app._currentPage._load()">Refresh</button></div>' +
+        '<div id="myTokensTable"><div class="loading">Loading...</div></div>' +
       '</div>';
     this._load();
   }
@@ -879,13 +879,13 @@ class MyTokensPage {
       const d = await app.api.get('/api/v1/tokens/me');
       const tokens = d.tokens || [];
       if (!tokens.length) { showEmpty(table); return; }
-      let h = '<table><tr><th>ID</th><th>权限</th><th>短过期</th><th>长过期</th><th>创建</th><th>最后使用</th><th>状态</th></tr>';
+      let h = '<table><tr><th>ID</th><th>Scopes</th><th>Short Expiry</th><th>Long Expiry</th><th>Created</th><th>Last Used</th><th>Status</th></tr>';
       tokens.forEach(t => {
         const expired = t.longExpires < Date.now();
         h += '<tr><td><code>' + esc(t.id) + '</code></td><td>' + badge('scope', esc(t.scopes)) + '</td>' +
           '<td>' + fmtTime(t.shortExpires) + '</td><td>' + fmtTime(t.longExpires) + '</td>' +
           '<td>' + fmtTime(t.createdAt) + '</td><td>' + fmtTime(t.lastUsedAt) + '</td>' +
-          '<td>' + (expired ? badge('err', '过期') : (t.revokedAt ? badge('err', '已撤销') : badge('ok', '有效'))) + '</td></tr>';
+          '<td>' + (expired ? badge('err', 'Expired') : (t.revokedAt ? badge('err', 'Revoked') : badge('ok', 'Active'))) + '</td></tr>';
       });
       table.innerHTML = h + '</table>';
     } catch (e) { if (e.name !== 'AbortError') showError(table, e.message); }
@@ -897,14 +897,14 @@ class MyApiKeysPage {
   mount() {
     this.container.innerHTML =
       '<div class="card">' +
-        '<h3>创建API密钥</h3>' +
-        '<div class="row"><label>名称</label><input id="myAkName" placeholder="my-app-key"></div>' +
-        '<div class="row"><label>权限</label><input id="myAkScopes" value="user:read chat:read chat:send"></div>' +
-        '<div class="row"><label>有效期</label><select id="myAkExpires" style="flex:1;min-width:120px">' +
-          '<option value="7">7天</option><option value="30">30天</option><option value="60" selected>60天</option><option value="90">90天</option><option value="180">180天</option><option value="365">365天</option>' +
+        '<h3>Create API Key</h3>' +
+        '<div class="row"><label>Name</label><input id="myAkName" placeholder="my-app-key"></div>' +
+        '<div class="row"><label>Scopes</label><input id="myAkScopes" value="user:read chat:read chat:send"></div>' +
+        '<div class="row"><label>Expiry</label><select id="myAkExpires" style="flex:1;min-width:120px">' +
+          '<option value="7">7 days</option><option value="30">30 days</option><option value="60" selected>60 days</option><option value="90">90 days</option><option value="180">180 days</option><option value="365">365 days</option>' +
         '</select></div>' +
-        '<button class="primary small" onclick="app._currentPage._create()">创建</button>' +
-        '<pre id="myAkResult" class="mt">等待操作...</pre>' +
+        '<button class="primary small" onclick="app._currentPage._create()">Create</button>' +
+        '<pre id="myAkResult" class="mt">Awaiting action...</pre>' +
       '</div>';
   }
   destroy() {}
@@ -912,12 +912,12 @@ class MyApiKeysPage {
     const name = qs('myAkName').value.trim();
     const scopes = qs('myAkScopes').value.trim().split(/\s+/);
     const expires_days = parseInt(qs('myAkExpires').value);
-    if (!name) { qs('myAkResult').textContent = '请输入名称'; return; }
-    qs('myAkResult').textContent = '创建中...';
+    if (!name) { qs('myAkResult').textContent = 'Please enter a name'; return; }
+    qs('myAkResult').textContent = 'Creating...';
     try {
       const d = await app.api.post('/api/v1/api-keys', { name, scopes, expires_days });
-      qs('myAkResult').textContent = '密钥: ' + d.key + '\n名称: ' + d.name + ' | 有效期: ' + d.expiresDays + '天 | 限流: ' + d.rateLimit + '/时';
-      toast('密钥创建成功', 'success');
+      qs('myAkResult').textContent = 'Key: ' + d.key + '\nName: ' + d.name + ' | Expiry: ' + d.expiresDays + ' days | Rate limit: ' + d.rateLimit + '/hr';
+      toast('API key created', 'success');
     } catch (e) { qs('myAkResult').textContent = 'Error: ' + e.message; }
   }
 }

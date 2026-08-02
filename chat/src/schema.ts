@@ -1,12 +1,12 @@
 import { pgTable, varchar, text, bigint, boolean, integer, primaryKey, uniqueIndex } from "drizzle-orm/pg-core";
 
-// ═══ 冷聊天数据库 cold_chat ═══
+// ═══ Cold chat database cold_chat ═══
 
 export const rooms = pgTable("rooms", {
   id: varchar("id", { length: 16 }).primaryKey(),
   type: varchar("type", { length: 8 }).notNull().default("direct"),
   name: varchar("name", { length: 64 }),
-  creatorId: varchar("creator_id", { length: 16 }).notNull(), // 注意: insert() 用 creatorId (JS属性名), 非 createdBy
+  creatorId: varchar("creator_id", { length: 16 }).notNull(), // note: insert() uses creatorId (JS property name), not createdBy
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
 });
 
@@ -19,7 +19,7 @@ export const roomMembers = pgTable("room_members", {
   roomUserUnique: uniqueIndex("idx_room_members_room_user_unique").on(t.roomId, t.userId),
 }));
 
-/** 冷消息 — 超过5分钟的消息归档到此 */
+/** Cold messages - messages older than 5 minutes are archived here */
 export const coldMessages = pgTable("cold_messages", {
   id: varchar("id", { length: 16 }).primaryKey(),
   roomId: varchar("room_id", { length: 16 }).notNull(),

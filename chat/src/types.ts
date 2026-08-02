@@ -1,4 +1,4 @@
-// intervalSinceLast 仅存在于热区消息中，冷库不存储此字段
+// intervalSinceLast only exists in hot-zone messages; the cold database does not store this field
 export interface ChatMessage {
   id: string;
   roomId: string;

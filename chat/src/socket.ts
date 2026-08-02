@@ -13,7 +13,7 @@ const MAX_INFLIGHT = 50;
 const inflightCount = new Map<string, number>();
 
 const onlineDebounce = new Map<string, number>();
-// 每个用户当前连接的 socket 集合（多端在线：任一断开不下线）
+// Per-user connected sockets set (multi-device online: one disconnect does not go offline)
 const userSockets = new Map<string, Set<string>>();
 function refreshOnline(uid: string) {
   const now = Date.now();
@@ -40,7 +40,7 @@ function isUserOnline(uid: string): boolean {
   return (userSockets.get(uid)?.size ?? 0) > 0;
 }
 
-// 定期清理过期的 debounce 记录，防止内存泄漏
+// Periodically clean up expired debounce records to prevent memory leaks
 setInterval(() => {
   const now = Date.now();
   for (const [uid, ts] of onlineDebounce) {
@@ -57,7 +57,7 @@ export function setupSocketHandlers(io: Server): void {
     const uid = socket.data.userId as string;
     refreshOnline(uid);
     trackSocket(uid, socket.id);
-    // 不再 io.emit — 不向所有客户端广播在线状态
+    // No io.emit - do not broadcast online status to all clients
 
     socket.on("v1:join", async ({ roomId }) => {
       refreshOnline(uid);
@@ -66,7 +66,7 @@ export function setupSocketHandlers(io: Server): void {
         const member = await isRoomMember(roomId, uid);
         if (!member) return socket.emit("v1:error", { message: "not a room member" });
         socket.join(roomId);
-        // 加入房间后，向该房间所有成员广播此用户在线
+        // After joining, broadcast this user's online status to all members of the room
         io.in(roomId).emit("v1:online", { userId: uid, online: true });
       } catch (e: any) {
         log.warn({ uid, roomId, err: e.message }, "v1:join failed");
@@ -78,7 +78,7 @@ export function setupSocketHandlers(io: Server): void {
       refreshOnline(uid);
       if (!roomId || typeof roomId !== "string") return;
       socket.leave(roomId);
-      // 离开房间后，向该房间所有成员广播此用户离线
+      // After leaving, broadcast this user's offline status to all members of the room
       io.in(roomId).emit("v1:online", { userId: uid, online: false });
     });
 
@@ -93,7 +93,7 @@ export function setupSocketHandlers(io: Server): void {
         refreshOnline(uid);
         if (!roomId || typeof roomId !== "string") throw new Error("invalid roomId");
         if (!content || typeof content !== "string") throw new Error("content required");
-        // 速率限制: 60条/10秒
+        // Rate limit: 60 messages / 10 seconds
         const allowed = await checkRateLimit(`ratelimit:msg:${uid}`, 60, 10);
         if (!allowed) throw new Error("rate limit exceeded, slow down");
         const ip = socket.handshake.address;
@@ -112,7 +112,7 @@ export function setupSocketHandlers(io: Server): void {
     });
 
     socket.on("disconnect", () => {
-      // 收集 disconnect 前的房间列表（disconnect 后 socket.rooms 已清空）
+      // Collect the room list before disconnect (socket.rooms is cleared after disconnect)
       const memberRooms: string[] = [];
       for (const room of socket.rooms) {
         if (room !== socket.id) memberRooms.push(room);
@@ -121,7 +121,7 @@ export function setupSocketHandlers(io: Server): void {
       if (!isUserOnline(uid)) {
         redis.del(`online:${uid}`).catch(() => {});
       }
-      // 向该用户所有房间的成员广播离线
+      // Broadcast offline status to members of all the user's rooms
       const payload = { userId: uid, online: false };
       for (const roomKey of memberRooms) {
         io.in(roomKey).emit("v1:online", payload);

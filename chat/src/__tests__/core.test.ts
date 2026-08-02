@@ -1,21 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { randomBytes } from "node:crypto";
 
-// ═══ 测试 genId ═══
-describe("genId (ID 生成)", () => {
+// ═══ Test genId ═══
+describe("genId (ID generation)", () => {
   function genId(): string {
     const ts = Date.now().toString().slice(-10);
     const rand = randomBytes(3).readUIntBE(0, 3).toString().padStart(6, "0").slice(-6);
     return ts + rand;
   }
 
-  it("生成 16 位数字 ID", () => {
+  it("generates a 16-digit numeric ID", () => {
     const id = genId();
     expect(id).toHaveLength(16);
     expect(id).toMatch(/^\d{16}$/);
   });
 
-  it("连续生成的 ID 大部分唯一", () => {
+  it("consecutive IDs are mostly unique", () => {
     const ids = new Set<string>();
     for (let i = 0; i < 1000; i++) {
       ids.add(genId());
@@ -23,67 +23,67 @@ describe("genId (ID 生成)", () => {
     expect(ids.size).toBeGreaterThan(995);
   });
 
-  it("ID 前10位是时间戳", () => {
+  it("the first 10 digits of the ID are the timestamp", () => {
     const id = genId();
     const ts = parseInt(id.slice(0, 10));
-    const now = Date.now().toString().slice(-10); // 取后10位
+    const now = Date.now().toString().slice(-10); // take the last 10 digits
     const diff = Math.abs(ts - parseInt(now));
-    // ID 的时间戳应该在当前时间 ±1秒内
+    // The ID timestamp should be within ±1 second of now
     expect(diff).toBeLessThan(1000);
   });
 });
 
-// ═══ 测试 requireString (路由校验) ═══
-describe("requireString 校验", () => {
+// ═══ Test requireString (route validation) ═══
+describe("requireString validation", () => {
   function requireString(body: any, field: string, min: number, max: number): string {
     if (!body || typeof body[field] !== "string") throw new Error(`${field} must be a string`);
     if (body[field].length < min || body[field].length > max) throw new Error(`${field} must be ${min}-${max} chars`);
     return body[field];
   }
 
-  it("有效输入返回值", () => {
+  it("returns the value for valid input", () => {
     expect(requireString({ content: "hello" }, "content", 1, 10000)).toBe("hello");
   });
 
-  it("缺少字段抛出错误", () => {
+  it("throws when the field is missing", () => {
     expect(() => requireString({}, "content", 1, 10000)).toThrow("content must be a string");
   });
 
-  it("非字符串类型抛出错误", () => {
+  it("throws for a non-string type", () => {
     expect(() => requireString({ content: 123 }, "content", 1, 10000)).toThrow("content must be a string");
   });
 
-  it("空字符串抛出错误 (min=1)", () => {
+  it("throws for an empty string (min=1)", () => {
     expect(() => requireString({ content: "" }, "content", 1, 10000)).toThrow("content must be 1-10000 chars");
   });
 });
 
-// ═══ 测试消息内容校验 ═══
-describe("消息内容校验", () => {
-  it("空内容应被拒绝", () => {
+// ═══ Test message content validation ═══
+describe("Message content validation", () => {
+  it("rejects empty content", () => {
     const content = "";
     expect(content.length > 0 && content.length <= 10000).toBe(false);
   });
 
-  it("正常内容应通过", () => {
+  it("accepts normal content", () => {
     const content = "Hello, this is a test message!";
     expect(content.length > 0 && content.length <= 10000).toBe(true);
   });
 
-  it("超长内容应被拒绝", () => {
+  it("rejects overly long content", () => {
     const content = "a".repeat(10001);
     expect(content.length > 0 && content.length <= 10000).toBe(false);
   });
 
-  it("边界值: 10000 字符应通过", () => {
+  it("accepts exactly 10000 characters", () => {
     const content = "a".repeat(10000);
     expect(content.length > 0 && content.length <= 10000).toBe(true);
   });
 });
 
-// ═══ 测试 memberIds 去重 ═══
-describe("memberIds 去重", () => {
-  it("去重后不包含创建者", () => {
+// ═══ Test memberIds dedup ═══
+describe("memberIds dedup", () => {
+  it("does not include the creator after dedup", () => {
     const createdBy = "user1";
     const memberIds = ["user1", "user2", "user3", "user2"];
     const seen = new Set([createdBy]);
@@ -97,7 +97,7 @@ describe("memberIds 去重", () => {
     expect(unique).not.toContain("user1");
   });
 
-  it("空 memberIds 不崩溃", () => {
+  it("does not crash with empty memberIds", () => {
     const createdBy = "user1";
     const memberIds: string[] = [];
     const seen = new Set([createdBy]);
@@ -110,7 +110,7 @@ describe("memberIds 去重", () => {
     expect(unique).toEqual([]);
   });
 
-  it("过滤无效 uid (空字符串)", () => {
+  it("filters invalid uids (empty strings)", () => {
     const createdBy = "user1";
     const memberIds = ["", "user2", ""];
     const seen = new Set([createdBy]);
@@ -124,15 +124,15 @@ describe("memberIds 去重", () => {
   });
 });
 
-// ═══ 测试 cursor 分页比较 ═══
-describe("cursor 分页比较", () => {
-  it("ID 字符串比较: 较新的 ID 更大", () => {
-    const id1 = "1234567890000001"; // 10位时间戳 + 6位随机
+// ═══ Test cursor pagination comparison ═══
+describe("cursor pagination comparison", () => {
+  it("ID string comparison: newer IDs are larger", () => {
+    const id1 = "1234567890000001"; // 10-digit timestamp + 6-digit random
     const id2 = "1234567891000002";
     expect(id2 > id1).toBe(true);
   });
 
-  it("cursor 过滤获取更早的消息", () => {
+  it("cursor filter fetches older messages", () => {
     const all = [
       { id: "1234567895000003" },
       { id: "1234567894000002" },
@@ -143,7 +143,7 @@ describe("cursor 分页比较", () => {
     expect(filtered).toEqual([{ id: "1234567893000001" }]);
   });
 
-  it("cursor 为 undefined 时返回全部", () => {
+  it("returns everything when cursor is undefined", () => {
     const all = [
       { id: "1234567895000003" },
       { id: "1234567894000002" },
@@ -154,68 +154,68 @@ describe("cursor 分页比较", () => {
     expect(filtered).toHaveLength(3);
   });
 
-  it("同毫秒消息不遗漏", () => {
+  it("does not miss messages within the same millisecond", () => {
     const all = [
       { id: "1234567894000001" },
       { id: "1234567894000002" },
       { id: "1234567894000003" },
     ];
-    // cursor 指向第二条
+    // cursor points to the second message
     const cursor = "1234567894000002";
     const filtered = all.filter(m => m.id < cursor);
     expect(filtered).toEqual([{ id: "1234567894000001" }]);
   });
 });
 
-// ═══ 测试消息类型 ═══
-describe("消息类型", () => {
-  it("支持 text 类型", () => {
+// ═══ Test message types ═══
+describe("Message types", () => {
+  it("supports the text type", () => {
     expect(["text", "image", "audio", "system"]).toContain("text");
   });
 
-  it("支持 image 类型", () => {
+  it("supports the image type", () => {
     expect(["text", "image", "audio", "system"]).toContain("image");
   });
 
-  it("支持 audio 类型", () => {
+  it("supports the audio type", () => {
     expect(["text", "image", "audio", "system"]).toContain("audio");
   });
 
-  it("支持 system 类型", () => {
+  it("supports the system type", () => {
     expect(["text", "image", "audio", "system"]).toContain("system");
   });
 });
 
-// ═══ 测试在线状态 TTL ═══
-describe("在线状态 TTL", () => {
-  it("TTL 为 120 秒", () => {
+// ═══ Test online status TTL ═══
+describe("Online status TTL", () => {
+  it("TTL is 120 seconds", () => {
     const TTL = 120;
     expect(TTL).toBe(120);
   });
 
-  it("debounce 间隔为 5 秒", () => {
+  it("debounce interval is 5 seconds", () => {
     const DEBOUNCE = 5000;
     expect(DEBOUNCE).toBe(5000);
   });
 
-  it("debounce 去重逻辑", () => {
+  it("debounce dedup logic", () => {
     const onlineDebounce = new Map<string, number>();
     const uid = "user1";
 
-    // 第一次调用
+    // First call
     let now = 1000;
     const last1 = onlineDebounce.get(uid);
     const shouldUpdate1 = !last1 || now - last1 >= 5000;
     expect(shouldUpdate1).toBe(true);
     onlineDebounce.set(uid, now);
 
-    // 5秒内再次调用
+    // Called again within 5 seconds
     now = 3000;
     const last2 = onlineDebounce.get(uid);
     const shouldUpdate2 = !last2 || now - last2 >= 5000;
     expect(shouldUpdate2).toBe(false);
 
-    // 5秒后再次调用
+    // Called again after 5 seconds
     now = 7000;
     const last3 = onlineDebounce.get(uid);
     const shouldUpdate3 = !last3 || now - last3 >= 5000;
@@ -223,10 +223,10 @@ describe("在线状态 TTL", () => {
   });
 });
 
-// ═══ 测试归档原子性 ═══
-describe("归档原子性", () => {
-  it("onConflictDoNothing 在主键冲突时不报错", () => {
-    // 模拟 PostgreSQL ON CONFLICT DO NOTHING 行为
+// ═══ Test archive atomicity ═══
+describe("Archive atomicity", () => {
+  it("onConflictDoNothing does not error on primary key conflict", () => {
+    // Simulate PostgreSQL ON CONFLICT DO NOTHING behavior
     const insertedIds = new Set<string>();
 
     function insert(id: string): { conflict: boolean } {
@@ -235,22 +235,22 @@ describe("归档原子性", () => {
       return { conflict: false };
     }
 
-    // 第一次插入
+    // First insert
     const r1 = insert("msg1");
     expect(r1.conflict).toBe(false);
 
-    // 第二次插入同一ID
+    // Second insert of the same ID
     const r2 = insert("msg1");
     expect(r2.conflict).toBe(true);
   });
 
-  it("主键冲突后只删除热区", () => {
+  it("only removes the hot zone on primary key conflict", () => {
     const coldStorage = new Set<string>();
     const hotStorage = new Set<string>(["msg1", "msg2"]);
 
     function archive(msgId: string): boolean {
       if (coldStorage.has(msgId)) {
-        // 主键冲突，只删热区
+        // Primary key conflict, only delete from the hot zone
         hotStorage.delete(msgId);
         return true;
       }
@@ -259,49 +259,49 @@ describe("归档原子性", () => {
       return false;
     }
 
-    // 第一次归档
+    // First archive
     archive("msg1");
     expect(coldStorage.has("msg1")).toBe(true);
     expect(hotStorage.has("msg1")).toBe(false);
 
-    // 第二次归档同一消息
+    // Archive the same message again
     archive("msg1");
     expect(coldStorage.has("msg1")).toBe(true);
     expect(hotStorage.has("msg1")).toBe(false);
   });
 });
 
-// ═══ 测试 Redis 缓存 LRU ═══
-describe("Redis 缓存 LRU 改进", () => {
-  it("命中缓存时删除并重新插入（提升到末尾）", () => {
+// ═══ Test Redis cache LRU improvement ═══
+describe("Redis cache LRU improvement", () => {
+  it("deletes and re-inserts on cache hit (promotes to tail)", () => {
     const cache = new Map<string, { ts: number }>();
 
-    // 插入三个条目
+    // Insert three entries
     cache.set("a", { ts: 1 });
     cache.set("b", { ts: 2 });
     cache.set("c", { ts: 3 });
 
-    // 验证插入顺序
+    // Verify insertion order
     const keys1 = [...cache.keys()];
     expect(keys1).toEqual(["a", "b", "c"]);
 
-    // 命中 "a" 并提升
+    // Hit "a" and promote it
     const val = cache.get("a")!;
     cache.delete("a");
     cache.set("a", val);
 
-    // 验证顺序变更
+    // Verify order changed
     const keys2 = [...cache.keys()];
     expect(keys2).toEqual(["b", "c", "a"]);
 
-    // 删除最旧条目时应删除 "b"
+    // Deleting the oldest entry should remove "b"
     const oldest = cache.keys().next().value!;
     cache.delete(oldest);
     const keys3 = [...cache.keys()];
     expect(keys3).toEqual(["c", "a"]);
   });
 
-  it("缓存上限 1000 条", () => {
+  it("cache is capped at 1000 entries", () => {
     const cache = new Map<string, number>();
     const MAX = 1000;
     for (let i = 0; i < MAX + 100; i++) {
@@ -315,10 +315,10 @@ describe("Redis 缓存 LRU 改进", () => {
   });
 });
 
-// ═══ 测试 ChatMessage 类型字段 ═══
-describe("ChatMessage 类型", () => {
-  it("intervalSinceLast 可选", () => {
-    // 模拟热区消息 (有 intervalSinceLast)
+// ═══ Test ChatMessage type fields ═══
+describe("ChatMessage type", () => {
+  it("intervalSinceLast is optional", () => {
+    // Simulate a hot-zone message (with intervalSinceLast)
     const hotMsg = {
       id: "1234567890000001",
       roomId: "room1",
@@ -333,7 +333,7 @@ describe("ChatMessage 类型", () => {
     };
     expect(hotMsg.intervalSinceLast).toBe(5000);
 
-    // 模拟冷区消息 (无 intervalSinceLast)
+    // Simulate a cold-zone message (without intervalSinceLast)
     const coldMsg = {
       id: "1234567890000002",
       roomId: "room1",
@@ -349,41 +349,41 @@ describe("ChatMessage 类型", () => {
   });
 });
 
-// ═══ 测试 X-Internal-Key 认证 ═══
-describe("X-Internal-Key 认证", () => {
-  it("正确密钥通过", () => {
+// ═══ Test X-Internal-Key authentication ═══
+describe("X-Internal-Key authentication", () => {
+  it("accepts the correct key", () => {
     const internalKey = "correct-key";
     const expected = "correct-key";
     expect(internalKey).toBe(expected);
   });
 
-  it("错误密钥拒绝", () => {
+  it("rejects a wrong key", () => {
     const internalKey = "wrong-key";
     const expected = "correct-key";
     expect(internalKey).not.toBe(expected);
   });
 
-  it("空密钥拒绝", () => {
+  it("rejects an empty key", () => {
     const internalKey = "";
     const expected = "correct-key";
     expect(internalKey).not.toBe(expected);
   });
 });
 
-// ═══ 测试 limit 上限 ═══
-describe("getMessages limit 上限", () => {
-  it("safeLimit 不超过 100", () => {
+// ═══ Test getMessages limit cap ═══
+describe("getMessages limit cap", () => {
+  it("safeLimit does not exceed 100", () => {
     const limit = 999;
     const safeLimit = Math.min(limit, 100);
     expect(safeLimit).toBe(100);
   });
 
-  it("默认 limit 为 30", () => {
+  it("default limit is 30", () => {
     const limit = 30;
     expect(limit).toBe(30);
   });
 
-  it("小 limit 保持原值", () => {
+  it("small limits are kept as-is", () => {
     const limit = 10;
     const safeLimit = Math.min(limit, 100);
     expect(safeLimit).toBe(10);

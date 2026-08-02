@@ -10,7 +10,7 @@ export function createClient(): Redis {
       lazyConnect: true,
       maxRetriesPerRequest: 3,
       retryStrategy(times: number) {
-        // 永不放弃：Redis 故障期间服务降级为纯 DB 模式，恢复后自动续传
+        // Never give up: service degrades to pure DB mode during a Redis outage and resumes automatically
         const delay = Math.min(times * 500, 15_000);
         log.warn({ attempt: times, delay }, "Redis: reconnecting");
         return delay;

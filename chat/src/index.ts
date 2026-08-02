@@ -17,7 +17,7 @@ const log = pino({ level: process.env.LOG_LEVEL || "info", name: "chat-service" 
 
 const redis = createClient();
 
-// ═══ 启动前校验：等待 Redis + DB ═══
+// ═══ Pre-start validation: wait for Redis + DB ═══
 for (let attempt = 1; attempt <= 10; attempt++) {
   try {
     await redis.connect();
@@ -77,7 +77,7 @@ app.addHook("onRequest", async (req) => {
 
 await registerRoutes(app);
 
-// ═══ Admin 控制面板 ═══
+// ═══ Admin dashboard ═══
 const dashboardHtml = readFileSync(join(import.meta.dirname!, "../dashboard/index.html"), "utf-8");
 app.get("/admin", async (req, reply) => reply.type("text/html").send(dashboardHtml));
 
@@ -107,7 +107,7 @@ io.use(async (socket, next) => {
 setupSocketHandlers(io);
 setBroadcast((roomId, msg) => io.to(roomId).emit("v1:message", msg));
 
-// ═══ 初始化: 用 SCAN 清理旧 online 标记（避免 KEYS 阻塞）═══
+// ═══ Init: clean old online markers with SCAN (avoid KEYS blocking) ═══
 try {
   let cursor = "0";
   do {
@@ -121,7 +121,7 @@ try {
 
 const archiverTimer = startArchiver();
 
-// ═══ 关闭处理（带超时强制退出）═══
+// ═══ Shutdown handling (forced exit on timeout) ═══
 let shuttingDown = false;
 async function shutdown(signal: string) {
   if (shuttingDown) return;

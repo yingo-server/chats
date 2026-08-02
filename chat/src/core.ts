@@ -24,12 +24,12 @@ export { redis };
 const FIVE_MIN = 300_000;
 
 function genId(): string {
-  const ts = Date.now().toString(); // 13 位毫秒时间戳，2286 年前不会回绕
+  const ts = Date.now().toString(); // 13-digit millisecond timestamp, no wrap-around before year 2286
   const rand = (randomBytes(2).readUIntBE(0, 2) % 1000).toString().padStart(3, "0");
   return ts + rand;
 }
 
-// ═══ 房间成员校验 (DB 故障时抛错，避免把 500 伪装成 403) ═══
+// ═══ Room membership check (throws on DB failure instead of faking 403 as 500) ═══
 export async function isRoomMember(roomId: string, userId: string): Promise<boolean> {
   const [row] = await db.select({ id: roomMembers.roomId }).from(roomMembers)
     .where(and(eq(roomMembers.roomId, roomId), eq(roomMembers.userId, userId)))
@@ -37,7 +37,7 @@ export async function isRoomMember(roomId: string, userId: string): Promise<bool
   return !!row;
 }
 
-// ═══ 获取用户加入的所有房间 ═══
+// ═══ Get all rooms joined by a user ═══
 export async function getUserRooms(userId: string) {
   const memberships = await db.select({ roomId: roomMembers.roomId }).from(roomMembers)
     .where(eq(roomMembers.userId, userId));
@@ -62,7 +62,7 @@ export async function getUserRooms(userId: string) {
   }));
 }
 
-// ═══ 获取单个房间详情 ═══
+// ═══ Get single room detail ═══
 export async function getRoomDetail(roomId: string) {
   const [room] = await db.select().from(rooms).where(eq(rooms.id, roomId)).limit(1);
   if (!room) return null;
@@ -71,14 +71,14 @@ export async function getRoomDetail(roomId: string) {
   return { ...room, memberIds: members.map(m => m.userId) };
 }
 
-// ═══ 获取房间成员 ═══
+// ═══ Get room members ═══
 export async function getRoomMembers(roomId: string): Promise<string[]> {
   const members = await db.select({ userId: roomMembers.userId }).from(roomMembers)
     .where(eq(roomMembers.roomId, roomId));
   return members.map(m => m.userId);
 }
 
-// ═══ 发送消息 → 写入热区(Redis) ═══
+// ═══ Send message -> write to hot zone (Redis) ═══
 export async function sendMessage(roomId: string, senderId: string, content: string, type: string, ip: string, bypassMembership = false) {
   if (!content || content.length > 10000) throw new Error("content must be 1-10000 characters");
   const ALLOWED_TYPES = ["text"];
@@ -91,7 +91,7 @@ export async function sendMessage(roomId: string, senderId: string, content: str
   const user = await fetchUser(senderId);
   const now = Date.now();
 
-  // 构造消息, ID 占位, 循环尝试写入避免碰撞（最多5次）
+  // Build message, placehold ID, loop to avoid collisions (max 5 attempts)
   const msg: Record<string, any> = {
     roomId, senderId,
     senderName: user?.global_name || "unknown",
@@ -115,7 +115,7 @@ export async function sendMessage(roomId: string, senderId: string, content: str
     if (i < 4) await new Promise(r => setTimeout(r, 5));
   }
   if (!saved) {
-    // Redis 不可用 → 直接写冷库，保证消息不丢（后续不再操作热区）
+    // Redis unavailable -> write directly to cold DB so the message is never lost (no hot zone afterwards)
     try {
       await db.insert(coldMessages).values({
         id: msg.id, roomId: msg.roomId, senderId: msg.senderId,
@@ -132,19 +132,19 @@ export async function sendMessage(roomId: string, senderId: string, content: str
   }
   if (savedDirect) return msg as any;
 
-  // 计算距上条消息间隔
+  // Compute interval since the previous message
   try {
     const last = await redis.get(`hot:last:${roomId}:${senderId}`);
     if (last) msg.intervalSinceLast = now - parseInt(last);
     if (msg.intervalSinceLast !== null && msg.intervalSinceLast > FIVE_MIN) msg.intervalSinceLast = null;
     await redis.set(`hot:last:${roomId}:${senderId}`, String(now), "EX", 600);
-    // 间隔算完后再写回热区，保证所有读取方都能拿到
+    // Write back to the hot zone after computing the interval so every reader gets it
     await redis.set(`hot:msg:${msg.id}`, JSON.stringify(msg), "EX", 600);
   } catch (e: any) {
     log.warn({ err: e.message }, "Failed to compute message interval");
   }
 
-  // 加入房间索引
+  // Add to room index
   try {
     await redis.lpush(`hot:room:${roomId}`, msg.id);
     await redis.expire(`hot:room:${roomId}`, 600);
@@ -155,7 +155,7 @@ export async function sendMessage(roomId: string, senderId: string, content: str
   return msg as any;
 }
 
-// ═══ 归档 → 冷数据库 ═══
+// ═══ Archive -> cold database ═══
 async function archiveMessage(msg: any) {
   const exists = await redis.get(`hot:msg:${msg.id}`);
   if (!exists) return;
@@ -176,13 +176,13 @@ async function archiveMessage(msg: any) {
   }
 }
 
-// ═══ 获取消息 (热+冷混合) ═══
+// ═══ Get messages (hot + cold hybrid) ═══
 export async function getMessages(roomId: string, userId: string, cursor?: string, limit = 30) {
   const member = await isRoomMember(roomId, userId);
   if (!member) throw new Error("not a room member");
   const safeLimit = Math.max(1, Math.min(limit, 100));
 
-  // 先从热区取（按 cursor 过滤，避免翻页重复）
+  // Fetch from the hot zone first (filtered by cursor to avoid page duplicates)
   let hotMsgs: any[] = [];
   try {
     const hotIds = await redis.lrange(`hot:room:${roomId}`, 0, -1);
@@ -205,7 +205,7 @@ export async function getMessages(roomId: string, userId: string, cursor?: strin
 
   const hotCursorFiltered = cursor ? hotMsgs.filter(m => m.id < cursor) : hotMsgs;
 
-  // 从冷区取 (cursor分页) — 数量 = 剩余名额
+  // Fetch from the cold zone (cursor paging) - count = remaining quota
   const hotUsed = Math.min(hotCursorFiltered.length, safeLimit);
   const coldLimit = safeLimit - hotUsed;
   const conditions = [eq(coldMessages.roomId, roomId)];
@@ -218,7 +218,7 @@ export async function getMessages(roomId: string, userId: string, cursor?: strin
       .limit(coldLimit);
   }
 
-  // 合并排序
+  // Merge and sort
   const all = [...hotCursorFiltered, ...coldMsgs].sort((a, b) => b.id.localeCompare(a.id));
   const items = all.slice(0, safeLimit).map(sanitizeMessage);
   return {
@@ -228,7 +228,7 @@ export async function getMessages(roomId: string, userId: string, cursor?: strin
   };
 }
 
-// ═══ 创建房间 ═══
+// ═══ Create room ═══
 export async function createRoom(type: string, createdBy: string, name?: string, memberIds?: string[]) {
   const id = genId();
   const now = Date.now();
@@ -252,7 +252,7 @@ export async function createRoom(type: string, createdBy: string, name?: string,
   return { id, type, name: name || null, creatorId: createdBy, createdAt: now };
 }
 
-// ═══ 查找两用户之间已存在的私聊房间 ═══
+// ═══ Find an existing direct room between two users ═══
 export async function findDirectRoom(a: string, b: string): Promise<string | null> {
   const rows = await db.execute(sql`
     SELECT rm1.room_id AS id FROM room_members rm1
@@ -265,7 +265,7 @@ export async function findDirectRoom(a: string, b: string): Promise<string | nul
   return row?.id ?? null;
 }
 
-// ═══ 创建私聊（Redis 锁保证并发幂等：同一对用户只会有一个私聊房间）═══
+// ═══ Create direct room (Redis lock guarantees concurrency idempotency: one room per user pair) ═══
 export async function createDirectRoom(a: string, b: string) {
   const [u1, u2] = [a, b].sort();
   const lockKey = `lock:direct:${u1}:${u2}`;
@@ -293,7 +293,7 @@ export async function createDirectRoom(a: string, b: string) {
   }
 }
 
-// ═══ 周期性归档: 每30秒检查并归档过期热消息 ═══
+// ═══ Periodic archiver: check and archive expired hot messages every 30 seconds ═══
 const ARCHIVE_INTERVAL = 30_000;
 
 export function startArchiver(): ReturnType<typeof setInterval> {
@@ -333,7 +333,7 @@ export function startArchiver(): ReturnType<typeof setInterval> {
   }, ARCHIVE_INTERVAL);
 }
 
-// ═══ 管理员: 获取消息 (绕过成员检查 + 热冷合并) ═══
+// ═══ Admin: Get messages (bypasses membership check + hot/cold merge) ═══
 export async function getMessagesAdmin(roomId: string, cursor?: string, limit = 30) {
   const safeLimit = Math.max(1, Math.min(limit, 100));
 
@@ -378,7 +378,7 @@ export async function getMessagesAdmin(roomId: string, cursor?: string, limit = 
   };
 }
 
-// ═══ 管理员: 删除房间 ═══
+// ═══ Admin: Delete room ═══
 export async function deleteRoom(roomId: string): Promise<void> {
   try {
     await db.transaction(async (tx) => {
@@ -392,7 +392,7 @@ export async function deleteRoom(roomId: string): Promise<void> {
     await db.delete(roomMembers).where(eq(roomMembers.roomId, roomId));
     await db.delete(rooms).where(eq(rooms.id, roomId));
   }
-  // 同时清理 Redis 中该房间的热消息
+  // Also clean up the room's hot messages in Redis
   try {
     await redis.del(`hot:room:${roomId}`);
   } catch {}

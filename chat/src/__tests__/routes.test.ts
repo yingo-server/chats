@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 import Fastify from "fastify";
 
-// ═══ Mock 数据库和依赖 ═══
+// ═══ Mock database and dependencies ═══
 const mockDb = {
   select: vi.fn().mockReturnThis(),
   from: vi.fn().mockReturnThis(),
@@ -35,6 +35,7 @@ vi.mock("../core.js", () => ({
   sendMessage: vi.fn().mockResolvedValue({ id: "1234567890000001", roomId: "room1", content: "hello" }),
   getMessages: vi.fn().mockResolvedValue({ items: [], cursor: undefined, hasMore: false }),
   createRoom: vi.fn().mockResolvedValue({ id: "1234567890000001", type: "direct", name: null }),
+  createDirectRoom: vi.fn().mockResolvedValue({ id: "1234567890000001", type: "direct", name: null }),
   startArchiver: vi.fn().mockReturnValue(setInterval(() => {}, 30000)),
   isRoomMember: vi.fn().mockResolvedValue(true),
   db: mockDb,
@@ -48,8 +49,8 @@ vi.mock("../api.js", () => ({
   fetchUser: vi.fn().mockResolvedValue({ name: "testuser", appName: "chat" }),
 }));
 
-// ═══ 测试路由 ═══
-describe("Chat Service 路由", () => {
+// ═══ Test routes ═══
+describe("Chat Service routes", () => {
   let app: ReturnType<typeof Fastify>;
 
   beforeAll(async () => {
@@ -62,8 +63,8 @@ describe("Chat Service 路由", () => {
     await app.close();
   });
 
-  // ═══ 健康检查 ═══
-  it("GET /api/v1/health 返回 ok", async () => {
+  // ═══ Health check ═══
+  it("GET /api/v1/health returns ok", async () => {
     const res = await app.inject({ method: "GET", url: "/api/v1/health" });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
@@ -71,8 +72,8 @@ describe("Chat Service 路由", () => {
     expect(body.service).toBe("chat-v1");
   });
 
-  // ═══ 就绪检查 ═══
-  it("GET /api/v1/ready 检查 DB 和 Redis", async () => {
+  // ═══ Readiness check ═══
+  it("GET /api/v1/ready checks DB and Redis", async () => {
     const res = await app.inject({ method: "GET", url: "/api/v1/ready" });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
@@ -82,7 +83,7 @@ describe("Chat Service 路由", () => {
   });
 
   // ═══ Metrics ═══
-  it("GET /api/v1/metrics 返回进程信息", async () => {
+  it("GET /api/v1/metrics returns process info", async () => {
     const res = await app.inject({ method: "GET", url: "/api/v1/metrics" });
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.payload);
@@ -91,8 +92,8 @@ describe("Chat Service 路由", () => {
     expect(body.pid).toBeGreaterThan(0);
   });
 
-  // ═══ 创建私聊房间 ═══
-  it("POST /api/v1/rooms/direct 成功创建", async () => {
+  // ═══ Create direct room ═══
+  it("POST /api/v1/rooms/direct succeeds", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/v1/rooms/direct",
@@ -105,7 +106,7 @@ describe("Chat Service 路由", () => {
     expect(body.room.id).toBeDefined();
   });
 
-  it("POST /api/v1/rooms/direct 无认证返回 401", async () => {
+  it("POST /api/v1/rooms/direct returns 401 without auth", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/v1/rooms/direct",
@@ -114,7 +115,7 @@ describe("Chat Service 路由", () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it("POST /api/v1/rooms/direct 缺少 targetUserId 返回 400", async () => {
+  it("POST /api/v1/rooms/direct returns 400 when targetUserId is missing", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/v1/rooms/direct",
@@ -124,8 +125,8 @@ describe("Chat Service 路由", () => {
     expect(res.statusCode).toBe(400);
   });
 
-  // ═══ 创建群聊房间 ═══
-  it("POST /api/v1/rooms/group 成功创建", async () => {
+  // ═══ Create group room ═══
+  it("POST /api/v1/rooms/group succeeds", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/v1/rooms/group",
@@ -138,7 +139,7 @@ describe("Chat Service 路由", () => {
     expect(body.room.id).toBeDefined();
   });
 
-  it("POST /api/v1/rooms/group memberIds 超过 100 返回 400", async () => {
+  it("POST /api/v1/rooms/group returns 400 when memberIds exceeds 100", async () => {
     const res = await app.inject({
       method: "POST",
       url: "/api/v1/rooms/group",
@@ -150,8 +151,8 @@ describe("Chat Service 路由", () => {
     expect(body.error).toBe("memberIds max 100");
   });
 
-  // ═══ 获取消息历史 ═══
-  it("GET /api/v1/rooms/:id/messages 成功获取", async () => {
+  // ═══ Get message history ═══
+  it("GET /api/v1/rooms/:id/messages succeeds", async () => {
     const res = await app.inject({
       method: "GET",
       url: "/api/v1/rooms/1234567890000001/messages",
@@ -162,7 +163,7 @@ describe("Chat Service 路由", () => {
     expect(body.ok).toBe(true);
   });
 
-  it("GET /api/v1/rooms/:id/messages 无认证返回 401", async () => {
+  it("GET /api/v1/rooms/:id/messages returns 401 without auth", async () => {
     const res = await app.inject({
       method: "GET",
       url: "/api/v1/rooms/1234567890000001/messages",
@@ -170,7 +171,7 @@ describe("Chat Service 路由", () => {
     expect(res.statusCode).toBe(401);
   });
 
-  it("GET /api/v1/rooms/:id/messages limit 为 NaN 时使用默认值 30", async () => {
+  it("GET /api/v1/rooms/:id/messages returns 400 for an invalid limit", async () => {
     const { getMessages } = await import("../core.js");
     (getMessages as any).mockResolvedValueOnce({ items: [], cursor: undefined, hasMore: false });
     const res = await app.inject({
@@ -178,6 +179,6 @@ describe("Chat Service 路由", () => {
       url: "/api/v1/rooms/1234567890000001/messages?limit=abc",
       headers: { authorization: "Bearer aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
     });
-    expect(res.statusCode).toBe(200);
+    expect(res.statusCode).toBe(400);
   });
 });

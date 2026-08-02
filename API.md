@@ -1,771 +1,445 @@
-# Yingo API 文档
+# Yingo Server — API Documentation
 
-Base URL:
-- User Service: `http://localhost:9000`
-- Chat Service: `http://localhost:9001`
+Covers the REST endpoints of the User Service and Chat Service.
 
-认证: `Authorization: Bearer <token>`
-
----
-
-## User Service (:9000)
-
-### 公开端点
-
-#### POST /api/v1/register
-
-注册新用户。首个注册用户自动成为 admin。
-
-**Request:**
-```json
-{
-  "username": "string (2-20字符)",
-  "password": "string (8-128字符)",
-  "app_id": "string (可选, 默认 'chat')"
-}
-```
-
-**Response 201:**
-```json
-{
-  "ok": true,
-  "user": {
-    "id": "1785515228432790",
-    "globalName": "alice",
-    "appNames": ["chat"],
-    "permission": "admin",
-    "createdAt": 1785515228432
-  }
-}
-```
-
-**Response 400:** 用户名/密码不符合要求
-```json
-{ "ok": false, "error": "用户名长度须在 2-20 字符之间" }
-```
-
-**Response 409:** 用户名已存在（自动生成 #N 后缀，实际不返回 409）
+- **Base URL (production)**: `https://server.344977.xyz:9000` (user) / `:9001` (chat)
+- **Local**: `http://localhost:9000` / `http://localhost:9001`
+- Unless noted, all responses are JSON: `{ "ok": true, "data": ... }` or `{ "ok": false, "error": "..." }`
 
 ---
 
-#### POST /api/v1/login
+## 1. User Service (Port 9000)
 
-登录获取 Token。
+### 1.1 Authentication Header
 
-**Request:**
-```json
-{
-  "username": "string",
-  "password": "string"
-}
+```
+Authorization: Bearer <short_token | long_token | api_key>
 ```
 
-**Response 200:**
-```json
-{
-  "ok": true,
-  "user_id": "1785515228432790",
-  "short_token": "a1b2c3... (32 hex chars)",
-  "long_token": "d4e5f6... (64 hex chars)",
-  "expires_in": 3600,
-  "permission": "admin"
-}
-```
+| Token Type | Format | Validity |
+|------------|--------|----------|
+| short_token | 32 hex chars | 1 hour |
+| long_token | 64 hex chars | 30 days |
+| api_key | `mk-` or `rk-` prefix | Configurable (7/30/60/90/180 days) |
 
-- `short_token`: 1 小时有效，用于日常 API
-- `long_token`: 30 天有效，用于持久登录
+### 1.2 Admin Permission
 
-**Response 401:**
-```json
-{ "ok": false, "error": "用户名或密码错误" }
-```
+| Permission | Capabilities |
+|------------|-------------|
+| `admin` | User management, token management, metrics, debug |
+| `user` | Normal user features only |
+
+First registered user in an empty database automatically becomes `admin`.
 
 ---
 
-#### GET /api/v1/verify
+### 1.3 Public Endpoints
 
-验证 Token 有效性。
+#### POST `/api/v1/register`
 
-**Headers:** `Authorization: Bearer <short_token 或 long_token>`
+Register a new user.
 
-**Response 200:**
-```json
-{
-  "ok": true,
-  "user_id": "1785515228432790",
-  "scopes": ["chat:read", "chat:write"],
-  "permission": "admin"
-}
-```
+**Request Body**
 
-**Response 401:** Token 无效/过期/已撤销
-```json
-{ "ok": false, "error": "invalid token" }
-```
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `global_name` | string | Yes | 1-64 chars, `[a-zA-Z0-9_\-]` only |
+| `app_name` | string | Yes | App name, 1-64 chars |
+| `password` | string | Yes | 6-64 chars |
+| `invite_code` | string | No | Invite code |
 
----
-
-### 用户端点 (需 Bearer Token)
-
-#### GET /api/v1/users/me
-
-获取当前登录用户资料。
-
-**Response 200:**
-```json
-{
-  "ok": true,
-  "user": {
-    "id": "1785515228432790",
-    "globalName": "alice",
-    "appNames": ["chat"],
-    "permission": "admin",
-    "online": true,
-    "createdAt": 1785515228432,
-    "lastOnlineAt": 1785515228432
-  }
-}
-```
-
----
-
-#### GET /api/v1/tokens/me
-
-获取当前用户的所有 Token。
-
-**Response 200:**
-```json
-{
-  "ok": true,
-  "tokens": [
-    {
-      "id": "1785515512563619",
-      "userId": "1785515228432790",
-      "scopes": "chat:read chat:write",
-      "shortExpires": 1785519112563,
-      "longExpires": 1788107512563,
-      "createdAt": 1785515512563,
-      "revokedAt": null,
-      "lastUsedAt": 1785515512563
-    }
-  ],
-  "total": 1
-}
-```
-
----
-
-#### POST /api/v1/api-keys
-
-创建 API Key。
-
-**Request:**
-```json
-{
-  "name": "my-app",
-  "scopes": ["chat:read"],
-  "expires_days": 30
-}
-```
-
-- `expires_days`: 7, 30, 60, 90, 180
-
-**Response 201:**
-```json
-{
-  "ok": true,
-  "key": "mk-a1b2c3... (128+ chars)",
-  "name": "my-app",
-  "expiresDays": 30,
-  "rateLimit": 100,
-  "prefix": "mk-"
-}
-```
-
-**Key 前缀:**
-- `mk-`: 开发/测试用 Key
-- `rk-`: 生产环境 Key
-
----
-
-### 内部端点 (需 Internal Key)
-
-#### GET /api/v1/internal/user/:id
-
-供 Chat 服务内部调用。
-
-**Headers:** `x-internal-key: <INTERNAL_API_KEY>`
-
-**Response 200:**
-```json
-{
-  "ok": true,
-  "user": {
-    "id": "1785515228432790",
-    "globalName": "alice",
-    "permission": "admin"
-  }
-}
-```
-
-**Response 404:**
-```json
-{ "ok": false, "error": "用户不存在" }
-```
-
----
-
-### Admin 端点 (需 Admin 权限)
-
-#### GET /api/v1/admin/users
-
-获取用户列表。
-
-**Response 200:**
-```json
-{
-  "ok": true,
-  "users": [
-    {
-      "id": "1785515228432790",
-      "globalName": "alice",
-      "appNames": ["chat"],
-      "permission": "admin",
-      "online": true,
-      "createdAt": 1785515228432,
-      "lastOnlineAt": 1785515228432
-    }
-  ],
-  "total": 1
-}
-```
-
----
-
-#### GET /api/v1/admin/users/:id
-
-获取指定用户详情。
-
-**Response 200:** 同上单个用户对象
-**Response 404:** 用户不存在
-
----
-
-#### DELETE /api/v1/admin/users/:id
-
-删除用户及其 Token、API Key。
-
-**Response 200:**
-```json
-{ "ok": true, "deleted": "1785515228432790" }
-```
-
-**Response 400:** 不能删除自己 / 最后管理员
-**Response 404:** 用户不存在
-
----
-
-#### PUT /api/v1/admin/users/:id/permission
-
-修改用户权限。
-
-**Request:**
-```json
-{ "permission": "admin" }
-```
-
-`permission` 值: `"admin"` | `"user"`
-
-**Response 200:**
-```json
-{ "ok": true, "userId": "1785515228451362", "permission": "admin" }
-```
-
-**Response 400:** 不能降低自己权限 / 最后管理员权限
-
----
-
-#### GET /api/v1/admin/tokens
-
-获取系统所有 Token 列表。
-
-**Response 200:**
-```json
-{
-  "ok": true,
-  "tokens": [/* 同 tokens/me 格式 */],
-  "total": 5
-}
-```
-
----
-
-#### DELETE /api/v1/admin/tokens/:id
-
-撤销指定 Token。
-
-**Response 200:**
-```json
-{ "ok": true, "revoked": "1785515512563619" }
-```
-
-**Response 404:** Token 不存在
-
----
-
-### 健康检查
-
-#### GET /api/v1/health
-
-存活检查 (Liveness)。
-
-**Response 200:**
-```json
-{ "ok": true, "service": "user-v1", "uptime": 123.456 }
-```
-
----
-
-#### GET /api/v1/ready
-
-就绪检查 (Readiness)。检查数据库连接。
-
-**Response 200:**
-```json
-{ "ok": true, "service": "user-v1", "db": "ok" }
-```
-
-**Response 503:**
-```json
-{ "ok": false, "service": "user-v1", "db": "error" }
-```
-
----
-
-#### GET /api/v1/metrics
-
-进程指标。
-
-**Response 200:**
-```json
-{
-  "uptime": 123.456,
-  "memory": { "rss": 50000000, "heapUsed": 30000000, "heapTotal": 40000000 },
-  "pid": 12345
-}
-```
-
----
-
-## Chat Service (:9001)
-
-### 用户端点 (需 Bearer Token)
-
-#### POST /api/v1/login
-
-登录代理，转发到 User Service。
-
-**Request:** 同 User Service /login
-**Response:** 同 User Service /login
-
----
-
-#### POST /api/v1/rooms/direct
-
-创建或获取私聊房间。
-
-**Request:**
-```json
-{ "targetUserId": "1785515228451362" }
-```
-
-**Response 200:**
-```json
-{
-  "ok": true,
-  "room": {
-    "id": "1785515229795851",
-    "type": "direct",
-    "name": null,
-    "creatorId": "1785515228432790",
-    "createdAt": 1785515229795,
-    "memberIds": ["1785515228432790", "1785515228451362"]
-  }
-}
-```
-
-**Response 400:** 缺少 targetUserId / 不能与自己私聊
-
----
-
-#### POST /api/v1/rooms/group
-
-创建群聊房间。
-
-**Request:**
-```json
-{
-  "name": "项目讨论",
-  "memberIds": ["1785515228451362", "1785515228466732"]
-}
-```
-
-- 成员上限: 100 人
-- 创建者自动加入
-
-**Response 201:**
-```json
-{
-  "ok": true,
-  "room": {
-    "id": "1785515230000001",
-    "type": "group",
-    "name": "项目讨论",
-    "creatorId": "1785515228432790",
-    "createdAt": 1785515230000,
-    "memberIds": ["1785515228432790", "1785515228451362", "1785515228466732"]
-  }
-}
-```
-
-**Response 400:** 名称过长 / 成员过多
-
----
-
-#### GET /api/v1/rooms
-
-获取当前用户的房间列表。
-
-**Response 200:**
-```json
-{
-  "ok": true,
-  "rooms": [/* 房间对象数组 */],
-  "total": 3
-}
-```
-
----
-
-#### GET /api/v1/rooms/:id
-
-获取房间详情。仅房间成员可访问。
-
-**Response 200:** 房间对象
-**Response 403:** 非房间成员
-**Response 404:** 房间不存在
-
----
-
-#### GET /api/v1/rooms/:id/members
-
-获取房间成员列表。仅房间成员可访问。
-
-**Response 200:**
-```json
-{
-  "ok": true,
-  "members": ["1785515228432790", "1785515228451362"],
-  "total": 2
-}
-```
-
----
-
-#### GET /api/v1/rooms/:id/messages
-
-获取消息历史 (Cursor 分页)。
-
-**Query Parameters:**
-- `limit`: 每页条数 (1-100, 默认 30)
-- `cursor`: 游标 (上一页返回的 cursor)
-
-**Response 200:**
-```json
-{
-  "ok": true,
-  "messages": [
-    {
-      "id": "msg_1785515230000",
-      "roomId": "1785515229795851",
-      "senderId": "1785515228432790",
-      "content": "你好",
-      "type": "text",
-      "sentAt": 1785515230000
-    }
-  ],
-  "hasMore": true,
-  "cursor": "1785515230000"
-}
-```
-
----
-
-#### POST /api/v1/rooms/:id/messages
-
-发送消息。
-
-**Request:**
-```json
-{
-  "content": "消息内容",
-  "type": "text"
-}
-```
-
-`type` 值: `"text"` | `"image"` | `"file"` | `"system"`
-
-**Response 201:**
-```json
-{
-  "ok": true,
-  "message": {
-    "id": "msg_1785515230000",
-    "roomId": "1785515229795851",
-    "senderId": "1785515228432790",
-    "content": "消息内容",
-    "type": "text",
-    "sentAt": 1785515230000
-  }
-}
-```
-
-**Response 403:** 非房间成员
-**Response 400:** 内容为空 / 类型无效
-
----
-
-### Admin 端点 (需 Admin 权限)
-
-#### GET /api/v1/admin/rooms
-
-获取所有房间列表。
-
-**Response 200:**
-```json
-{
-  "ok": true,
-  "rooms": [/* 房间对象 */],
-  "total": 10
-}
-```
-
----
-
-#### GET /api/v1/admin/rooms/:id/members
-
-获取指定房间成员。
-
----
-
-#### GET /api/v1/admin/rooms/:id/messages
-
-查看指定房间消息 (绕过成员检查)。
-
-**Query Parameters:** 同 /rooms/:id/messages
-
----
-
-#### POST /api/v1/admin/rooms/:id/messages
-
-代理发送消息 (以管理员身份)。
-
-**Request:** 同 /rooms/:id/messages
-
----
-
-#### POST /api/v1/admin/rooms/direct
-
-管理员创建私聊 (指定双方)。
-
-**Request:**
-```json
-{
-  "user1Id": "1785515228432790",
-  "user2Id": "1785515228451362"
-}
-```
-
----
-
-#### POST /api/v1/admin/rooms/group
-
-管理员创建群组 (指定创建者)。
-
-**Request:**
-```json
-{
-  "name": "项目讨论",
-  "creatorId": "1785515228432790",
-  "memberIds": ["1785515228451362"]
-}
-```
-
----
-
-#### POST /api/v1/admin/rooms/:id/members
-
-添加房间成员。
-
-**Request:**
-```json
-{ "userId": "1785515228466732" }
-```
-
----
-
-#### DELETE /api/v1/admin/rooms/:roomId/members/:userId
-
-移除房间成员。
-
----
-
-#### DELETE /api/v1/admin/rooms/:id
-
-删除房间 (级联删除消息和成员关系)。
-
----
-
-#### GET /api/v1/admin/stats
-
-获取系统统计。
-
-**Response 200:**
-```json
-{
-  "ok": true,
-  "stats": {
-    "totalRooms": 10,
-    "totalMessages": 500,
-    "totalUsers": 50,
-    "onlineUsers": 5
-  }
-}
-```
-
----
-
-### 健康检查
-
-同 User Service: `/health`, `/ready`, `/metrics`
-
----
-
-## WebSocket (Socket.IO)
-
-### 连接
-
-```javascript
-const socket = io("http://localhost:9001", {
-  auth: { token: "your_short_token" }
-});
-```
-
-### 事件
-
-#### v1:join (client → server)
-
-加入房间。
-
-```javascript
-socket.emit("v1:join", { roomId: "room_id" });
-```
-
-**响应:** 成功加入或 `v1:error`
-
----
-
-#### v1:leave (client → server)
-
-离开房间。
-
-```javascript
-socket.emit("v1:leave", { roomId: "room_id" });
-```
-
----
-
-#### v1:message (双向)
-
-发送/接收消息。
-
-```javascript
-// 发送
-socket.emit("v1:message", {
-  roomId: "room_id",
-  content: "你好",
-  type: "text"
-}, (ack) => {
-  // ack: { ok: true, messageId: "msg_xxx" }
-});
-
-// 接收
-socket.on("v1:message", (msg) => {
-  // msg: { roomId, senderId, content, type, sentAt, id }
-});
-```
-
----
-
-#### v1:online (server → client)
-
-在线状态变更通知。
-
-```javascript
-socket.on("v1:online", (data) => {
-  // data: { userId: "xxx", online: true/false }
-});
-```
-
----
-
-#### v1:error (server → client)
-
-错误通知。
-
-```javascript
-socket.on("v1:error", (data) => {
-  // data: { message: "error description" }
-});
-```
-
----
-
-## 错误码
-
-| HTTP 状态码 | 含义 |
-|------------|------|
-| 200 | 成功 |
-| 201 | 创建成功 |
-| 400 | 请求参数错误 |
-| 401 | 未认证 / Token 无效 |
-| 403 | 无权限 |
-| 404 | 资源不存在 |
-| 500 | 服务器内部错误 |
-
-## 通用错误响应格式
+**Success 201**
 
 ```json
-{
-  "ok": false,
-  "error": "错误描述"
-}
+{ "ok": true, "data": { "user": { "id": "a1b2c3d4e5f6g7h8", "global_name": "test", "app_names": {"test": "test"}, "created_at": 1736000000000 } } }
 ```
 
-## 速率限制
+**Errors**: `username taken` (409), `invalid username` / `invalid app name` / `weak password` (400), `invalid invite code` (400)
 
-- API Key: 100 次/分钟
-- Token: 无硬性限制，建议客户端控制频率
+#### POST `/api/v1/login`
 
-## 分页
+Login with username + password.
 
-消息接口使用 Cursor 分页:
+**Request Body**: `{ "global_name": string, "app_name": string, "password": string }`
+
+**Success 200**
+
+```json
+{ "ok": true, "data": { "user": { "id": "...", "global_name": "...", "app_names": {}, "permission": "user" }, "short_token": "...", "short_expires": 1736003600000, "long_token": "...", "long_expires": 1738595600000 } }
+```
+
+**Errors**: `user not found` / `wrong password` (401)
+
+#### GET `/api/v1/health`
+
+Service health check. **Success 200**
+
+```json
+{ "status": "ok", "version": "1.0.0" }
+```
+
+---
+
+### 1.4 Token Management
+
+#### GET `/api/v1/verify`
+
+Verify token and return user info.
+
+**Request**: Bearer token
+
+**Success 200**
+
+```json
+{ "ok": true, "data": { "user": { "id": "...", "global_name": "...", "app_names": {}, "permission": "user" } } }
+```
+
+#### GET `/api/v1/tokens/me`
+
+List tokens of current user.
+
+**Success 200**: Token list with scopes, expiration, creation time.
+
+#### DELETE `/api/v1/tokens/me`
+
+Revoke all tokens of current user.
+
+**Success 200**
+
+```json
+{ "ok": true, "data": { "revoked": true } }
+```
+
+---
+
+### 1.5 User Endpoints
+
+#### GET `/api/v1/users/me`
+
+Get current user info.
+
+**Success 200**
+
+```json
+{ "ok": true, "data": { "user": { "id": "...", "global_name": "...", "app_names": {}, "permission": "user" } } }
+```
+
+#### GET `/api/v1/users/:id`
+
+Get user info by ID.
+
+**Success 200**
+
+```json
+{ "ok": true, "data": { "user": { "id": "...", "global_name": "...", "app_names": {} } } }
+```
+
+**Errors**: `user not found` (404)
+
+#### POST `/api/v1/logout`
+
+Log out current user.
+
+**Success 200**
+
+```json
+{ "ok": true, "data": { "logged_out": true } }
+```
+
+---
+
+### 1.6 API Keys
+
+#### POST `/api/v1/api-keys`
+
+Create an API key.
+
+**Request Body**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | 1-64 chars |
+| `scopes` | string[] | No | Comma-separated list, e.g. `read,write` |
+| `valid_days` | number | No | 7, 30, 60, 90, or 180 (default 30) |
+| `rate_limit` | number | No | Requests/minute (default 100) |
+
+**Success 201**
+
+```json
+{ "ok": true, "data": { "key": { "id": "...", "name": "...", "scopes": "...", "rate_limit": 100, "expires_at": 1738595600000 }, "api_key": "mk-..." } }
+```
+
+> The `api_key` full value is only returned once.
+
+#### GET `/api/v1/api-keys/me`
+
+List API keys of current user.
+
+#### DELETE `/api/v1/api-keys/:id`
+
+Revoke an API key.
+
+---
+
+### 1.7 Admin Endpoints
+
+All require `admin` permission. Support:
+
+- `?limit` — max rows (default 20)
+- `?offset` — pagination offset
+- `?search` — keyword search
+- Sorting: `created_at DESC`
+
+#### GET `/api/v1/admin/users`
+
+List users.
+
+**Success 200**
+
+```json
+{ "ok": true, "data": { "users": [ { "id": "...", "global_name": "...", "app_names": {}, "permission": "user", "online": false, "created_at": 1736000000000 } ], "total": 1 } }
+```
+
+#### GET `/api/v1/admin/users/:id`
+
+Get user details.
+
+**Success 200**
+
+```json
+{ "ok": true, "data": { "user": { "id": "...", "global_name": "...", "app_names": {}, "permission": "user", "online": false, "created_at": 1736000000000 } } }
+```
+
+#### PUT `/api/v1/admin/users/:id/permission`
+
+Update user permission.
+
+**Request Body**: `{ "permission": "admin" | "user" }`
+
+**Success 200**
+
+```json
+{ "ok": true, "data": { "user": { "id": "...", "permission": "admin" } } }
+```
+
+**Errors**: `invalid permission` (400), `cannot demote the last admin` (400), `user not found` (404)
+
+#### GET `/api/v1/admin/tokens`
+
+List all tokens.
+
+**Success 200**: Token list with user info, expiration, revocation status.
+
+#### DELETE `/api/v1/admin/tokens/:id`
+
+Revoke a specific token.
+
+#### GET `/api/v1/metrics`
+
+Service metrics (requireAdmin; no auth → 403).
+
+**Success 200**
+
+```json
+{ "ok": true, "data": { "metrics": { "uptime_seconds": 1234, "total_requests": 567, "requests_per_minute": 12, "db_pool": { "total": 10, "idle": 8 }, "memory_usage_mb": 45.2 } } }
+```
+
+#### GET `/api/v1/debug/config`
+
+Debug configuration (returns JSON in dev/test).
+
+---
+
+### 1.8 Internal Endpoints
+
+Require `x-internal-key` header matching `INTERNAL_API_KEY`.
+
+#### GET `/api/v1/internal/user/:id`
+
+Internal user lookup (used by Chat Service).
+
+**Success 200**
+
+```json
+{ "ok": true, "data": { "user": { "id": "...", "global_name": "...", "app_names": {}, "permission": "user", "online": false } } }
+```
+
+**Errors**: `user not found` (404)
+
+---
+
+## 2. Chat Service (Port 9001)
+
+### 2.1 WebSocket
 
 ```
-GET /api/v1/rooms/:id/messages?limit=30
-GET /api/v1/rooms/:id/messages?limit=30&cursor=<上一页返回的cursor>
+wss://server.344977.xyz:9001/socket.io
 ```
 
-- `hasMore: true` 表示还有更多数据
-- `cursor` 是下一页的起始位置
-- 按 `sentAt` 降序排列
+**Connection handshake**
+
+```json
+{ "token": "<long_token>", "user": { "id": "xxx", "global_name": "yyy", "app_names": {} } }
+```
+
+**Events**
+
+| Event | Direction | Description |
+|-------|-----------|-------------|
+| `v1:join` | Client → Server | Join room |
+| `v1:leave` | Client → Server | Leave room |
+| `v1:message` | Client → Server | Send message |
+| `v1:online` | Server → Client | Online status update |
+| `v1:message` | Server → Client | New message broadcast |
+| `v1:error` | Server → Client | Error notification |
+| `disconnect` | Client → Server | Disconnect |
+
+**Send message payload**
+
+```json
+{ "roomId": "xxx", "type": "text", "content": "hello" }
+```
+
+**Server broadcast payload**
+
+```json
+{ "roomId": "xxx", "message": { "id": "msg1", "room_id": "xxx", "sender_id": "uid1", "sender_name": "alice", "content": "hello", "type": "text", "sent_at": 1736000000000 }, "user": { "id": "uid1", "global_name": "alice", "app_names": {} } }
+```
+
+---
+
+### 2.2 Rooms
+
+#### POST `/api/v1/rooms/direct`
+
+Create a direct chat.
+
+**Request Body**: `{ "target_user_id": string, "app_name"?: string }`
+
+**Success 201**
+
+```json
+{ "ok": true, "data": { "room": { "id": "r1", "type": "direct", "name": null, "created_at": 1736000000000 }, "members": [ { "user_id": "uid1" }, { "user_id": "uid2" } ] } }
+```
+
+#### POST `/api/v1/rooms/group`
+
+Create a group chat.
+
+**Request Body**: `{ "name": string (1-64), "member_ids": string[] }`
+
+**Success 201**: Same structure as direct room, `type: "group"`.
+
+#### GET `/api/v1/rooms/me`
+
+List rooms of current user.
+
+**Success 200**: Room list with member info and last message.
+
+---
+
+### 2.3 Messages
+
+#### GET `/api/v1/rooms/:id/messages`
+
+Get message history (Redis + PostgreSQL merged, paginated).
+
+**Query Params**
+
+| Param | Type | Default | Description |
+|-------|------|---------|-------------|
+| `limit` | number | 50 | Max 100 |
+| `offset` | number | 0 | Pagination offset |
+| `before` | number | - | Timestamp (ms), only messages earlier than this |
+
+**Success 200**
+
+```json
+{ "ok": true, "data": { "messages": [ { "id": "msg1", "room_id": "r1", "sender_id": "uid1", "sender_name": "alice", "content": "hello", "type": "text", "sent_at": 1736000000000, "recalled": false } ], "total": 1, "has_more": false } }
+```
+
+#### POST `/api/v1/rooms/:id/messages`
+
+Send a message.
+
+**Request Body**: `{ "type": "text" | "image" | "file", "content": string (1-2048), "app_name"?: string }`
+
+**Success 201**: Message object as above.
+
+---
+
+### 2.4 Admin Endpoints
+
+All require `admin` permission.
+
+#### GET `/api/v1/admin/rooms`
+
+List all rooms.
+
+**Success 200**: Room list with member count and last message time.
+
+#### DELETE `/api/v1/admin/rooms/:id`
+
+Delete a room (members and messages cascade).
+
+**Success 200**
+
+```json
+{ "ok": true, "data": { "deleted": true } }
+```
+
+#### POST `/api/v1/admin/rooms/:id/members`
+
+Add members to a room.
+
+**Request Body**: `{ "user_ids": string[] }`
+
+**Success 201**
+
+```json
+{ "ok": true, "data": { "members": [ { "id": "m1", "room_id": "r1", "user_id": "uid3", "joined_at": 1736000000000 } ] } }
+```
+
+#### DELETE `/api/v1/admin/rooms/:id/members/:userId`
+
+Remove a member from a room.
+
+#### GET `/api/v1/admin/stats`
+
+Service statistics.
+
+**Success 200**
+
+```json
+{ "ok": true, "data": { "stats": { "total_rooms": 5, "total_messages": 120, "hot_messages": 34, "cold_messages": 86, "active_users": 3 } } }
+```
+
+#### GET `/api/v1/admin/metrics`
+
+Service metrics.
+
+**Success 200**
+
+```json
+{ "ok": true, "data": { "metrics": { "uptime_seconds": 1234, "total_requests": 890, "requests_per_minute": 45, "socket_connections": 12, "redis_cache_hits": 89, "redis_cache_misses": 11, "memory_usage_mb": 67.8 } } }
+```
+
+---
+
+## 3. Error Format
+
+```json
+{ "ok": false, "error": "<error code>" }
+```
+
+| HTTP Status | Meaning |
+|-------------|---------|
+| 200 | Success |
+| 201 | Created |
+| 400 | Invalid parameters |
+| 401 | Unauthorized (missing/invalid token) |
+| 403 | Forbidden (insufficient permission) |
+| 404 | Resource not found |
+| 409 | Conflict (e.g. username taken) |
+| 429 | Rate limited |
+| 500 | Internal server error |

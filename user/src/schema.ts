@@ -1,12 +1,12 @@
 import { pgTable, varchar, text, bigint, boolean, jsonb, integer, index } from "drizzle-orm/pg-core";
 
-// ═══ 冷用户数据库 cold_user ═══
+// ═══ Cold user database cold_user ═══
 
-/** 用户主表 — ID为16位数字字符串 */
+/** User main table - ID is a 16-digit numeric string */
 export const users = pgTable("users", {
   id: varchar("id", { length: 16 }).primaryKey(),
   globalName: varchar("global_name", { length: 64 }).notNull().unique(),
-  appNames: jsonb("app_names").notNull().$type<Record<string, string>>(), // {chat:"张三", forum:"张三#1"}
+  appNames: jsonb("app_names").notNull().$type<Record<string, string>>(), // {chat:"John", forum:"John#1"}
   passwordHash: text("password_hash").notNull(),   // bcrypt(pepper + salt + password)
   passwordSalt: varchar("password_salt", { length: 32 }).notNull(),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),   // unix ms
@@ -15,7 +15,7 @@ export const users = pgTable("users", {
   online: boolean("online").notNull().default(false),
 });
 
-/** Token表 — 短期32位 + 长期64位 */
+/** Token table - short-term 32 chars + long-term 64 chars */
 export const tokens = pgTable("tokens", {
   id: varchar("id", { length: 16 }).primaryKey(),
   userId: varchar("user_id", { length: 16 }).notNull().references(() => users.id),
@@ -38,7 +38,7 @@ export const tokens = pgTable("tokens", {
   lookupIdx: index("idx_tokens_lookup").on(t.tokenLookup),
 }));
 
-/** API Key — 用户自建128位，前缀mk-/rk- */
+/** API Key - user-created 128-bit, prefix mk-/rk- */
 export const apiKeys = pgTable("api_keys", {
   id: varchar("id", { length: 16 }).primaryKey(),
   userId: varchar("user_id", { length: 16 }).notNull().references(() => users.id),
@@ -54,13 +54,13 @@ export const apiKeys = pgTable("api_keys", {
   revokedAt: bigint("revoked_at", { mode: "number" }),
 });
 
-/** OAuth2 Client (简化) */
+/** OAuth2 Client (simplified) */
 export const oauthClients = pgTable("oauth_clients", {
   id: varchar("id", { length: 16 }).primaryKey(),
   clientId: varchar("client_id", { length: 32 }).notNull().unique(),
   clientSecretHash: varchar("client_secret_hash", { length: 255 }).notNull(),
   name: varchar("name", { length: 64 }).notNull(),
-  appId: varchar("app_id", { length: 32 }).notNull(), // 关联的应用ID
+  appId: varchar("app_id", { length: 32 }).notNull(), // linked application ID
   allowedScopes: text("allowed_scopes").notNull().default(""),
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
   status: integer("status").notNull().default(1),

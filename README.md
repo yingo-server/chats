@@ -1,57 +1,63 @@
 # Yingo Server
 
-瀹炴椂鑱婂ぉ鍚庣绯荤粺锛屽井鏈嶅姟鏋舵瀯銆侳astify + Socket.IO + PostgreSQL + Redis銆?
-## 鏈嶅姟
+Real-time chat backend system with a microservice architecture. Fastify + Socket.IO + PostgreSQL + Redis.
 
-| 鏈嶅姟 | 绔彛 | 鑱岃矗 |
-|------|------|------|
-| `user/` | 9000 | 鐢ㄦ埛娉ㄥ唽銆佺櫥褰曘€乀oken銆佹潈闄愮鐞?|
-| `chat/` | 9001 | 瀹炴椂娑堟伅銆佹埧闂淬€乄ebSocket |
-| `frontend/` | - | 闈欐€佸墠绔?SPA (Netlify) |
-| `debug/` | - | Python 闆嗘垚娴嬭瘯妗嗘灦 |
+## Services
 
-## 鎶€鏈爤
+| Service | Port | Responsibility |
+|---------|------|----------------|
+| `user/` | 9000 | User registration, login, tokens, permission management |
+| `chat/` | 9001 | Real-time messages, rooms, WebSocket |
+| `frontend/` | - | Static SPA frontend (Netlify) |
+| `debug/` | - | Python integration test framework |
 
-- **杩愯鏃?*: Node.js 22+
-- **妗嗘灦**: Fastify 5
+## Tech Stack
+
+- **Runtime**: Node.js 22+
+- **Framework**: Fastify 5
 - **ORM**: Drizzle ORM
-- **鏁版嵁搴?*: PostgreSQL 16 + Redis 7
-- **瀹炴椂閫氫俊**: Socket.IO 4
-- **璇█**: TypeScript (ES2022, 涓ユ牸妯″紡)
-- **娴嬭瘯**: Vitest (鍗曞厓) + Python requests/socketio (闆嗘垚)
+- **Databases**: PostgreSQL 16 + Redis 7
+- **Real-time**: Socket.IO 4
+- **Language**: TypeScript (ES2022, strict mode)
+- **Testing**: Vitest (unit) + Python requests/socketio (integration)
 
-## 浠ｇ爜缁撴瀯
+## Code Structure
 
 ```
 user/src/                          chat/src/
-鈹溾攢鈹€ index.ts   鈥?鏈嶅姟鍚姩          鈹溾攢鈹€ index.ts    鈥?鏈嶅姟鍚姩+Socket.IO
-鈹溾攢鈹€ routes.ts  鈥?REST 璺敱         鈹溾攢鈹€ routes.ts   鈥?REST 璺敱
-鈹溾攢鈹€ core.ts    鈥?涓氬姟閫昏緫          鈹溾攢鈹€ core.ts     鈥?娑堟伅/鎴块棿涓氬姟閫昏緫
-鈹溾攢鈹€ db.ts      鈥?鏁版嵁搴撹繛鎺?       鈹溾攢鈹€ api.ts      鈥?User Service 璋冪敤闅旂
-鈹溾攢鈹€ schema.ts  鈥?琛ㄥ畾涔?           鈹溾攢鈹€ socket.ts   鈥?WebSocket 浜嬩欢澶勭悊
-鈹溾攢鈹€ types.ts   鈥?绫诲瀷瀹氫箟          鈹溾攢鈹€ redis.ts    鈥?Redis 杩炴帴
-鈹斺攢鈹€ debug-config.ts               鈹溾攢鈹€ schema.ts   鈥?琛ㄥ畾涔?                                  鈹溾攢鈹€ types.ts    鈥?绫诲瀷瀹氫箟
-                                  鈹斺攢鈹€ debug-config.ts
+├── index.ts   — service startup   ├── index.ts   — startup + Socket.IO
+├── routes.ts  — REST routes       ├── routes.ts  — REST routes
+├── core.ts    — business logic    ├── core.ts    — message/room business logic
+├── db.ts      — database connect  ├── api.ts     — User Service call adapter
+├── schema.ts  — table definitions ├── socket.ts  — WebSocket event handling
+├── types.ts   — type definitions  ├── redis.ts   — Redis connection
+└── debug-config.ts                ├── schema.ts  — table definitions
+                                   ├── types.ts   — type definitions
+                                   └── debug-config.ts
 ```
 
-**渚濊禆鍏崇郴**: Chat 鏈嶅姟浠呴€氳繃 `api.ts` 璋冪敤 User Service锛屽畬鍏ㄩ殧绂汇€?
-## 蹇€熷紑濮?
-### 鐜瑕佹眰
+**Dependency**: Chat Service only calls User Service via `api.ts`, fully isolated.
+
+## Quick Start
+
+### Prerequisites
 
 - Node.js 22+
-- PostgreSQL 16+ (鏁版嵁搴? `cold_user`, `cold_chat`)
+- PostgreSQL 16+ (databases: `cold_user`, `cold_chat`)
 - Redis 7+
 
-### 鏈湴寮€鍙?
+### Local Development
+
 ```bash
-# 瀹夎渚濊禆
+# Install dependencies
 cd user && npm install
 cd ../chat && npm install
 
-# 鍚屾鏁版嵁搴?cd user && npx drizzle-kit push
+# Sync database schema
+cd user && npx drizzle-kit push
 cd ../chat && npx drizzle-kit push
 
-# 鍚姩鏈嶅姟
+# Start services
 cd user && npx tsx src/index.ts   # :9000
 cd chat && npx tsx src/index.ts   # :9001
 ```
@@ -63,115 +69,126 @@ cd user && docker compose up -d
 cd ../chat && docker compose up -d
 ```
 
-## 鐜鍙橀噺
+## Environment Variables
 
-| 鍙橀噺 | 榛樿鍊?| 璇存槑 |
-|------|--------|------|
-| `DATABASE_URL` | `postgres://yingo:yingo123@localhost:5432/cold_user` | PostgreSQL 杩炴帴涓?|
-| `REDIS_URL` | `redis://localhost:6379` | Redis 杩炴帴涓?(浠?Chat) |
-| `USER_SERVICE_URL` | `http://localhost:9000` | User Service 鍦板潃 (浠?Chat) |
-| `PEPPER_SECRET` | `dev-pepper-change-in-production` | 瀵嗙爜 Pepper |
-| `TOKEN_SECRET` | `dev-token-secret-change-in-production` | Token HMAC 瀵嗛挜 |
-| `CORS_ORIGINS` | `http://localhost:3000` | CORS 鐧藉悕鍗?(閫楀彿鍒嗛殧) |
-| `LOG_LEVEL` | `info` | 鏃ュ織绾у埆 |
-| `SSL_CERT` / `SSL_KEY` | - | HTTPS 璇佷功璺緞 |
-| `INTERNAL_API_KEY` | `dev-internal-key-change-in-production` | 鍐呴儴鎺ュ彛瀵嗛挜 |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_URL` | `postgres://yingo:yingo123@localhost:5432/cold_user` | PostgreSQL connection string |
+| `REDIS_URL` | `redis://localhost:6379` | Redis connection string (Chat only) |
+| `USER_SERVICE_URL` | `http://localhost:9000` | User Service address (Chat only) |
+| `PEPPER_SECRET` | `dev-pepper-change-in-production` | Password pepper |
+| `TOKEN_SECRET` | `dev-token-secret-change-in-production` | Token HMAC key |
+| `CORS_ORIGINS` | `http://localhost:3000` | CORS whitelist (comma-separated) |
+| `LOG_LEVEL` | `info` | Log level |
+| `SSL_CERT` / `SSL_KEY` | - | HTTPS certificate paths |
+| `INTERNAL_API_KEY` | `dev-internal-key-change-in-production` | Internal API key |
 
-## 鏋舵瀯
+## Architecture
 
-### 鐑?鍐锋秷鎭?
-```
-鍙戦€?鈫?Redis (鐑尯, TTL=10min)
-            鈫?姣?0s褰掓。
-       PostgreSQL (鍐峰尯, 鎸佷箙鍖?
-```
-
-- 5鍒嗛挓鍐呮秷鎭蛋 Redis锛岃鍐欏揩
-- 瓒呮椂鑷姩褰掓。鍒?PostgreSQL
-- 杩涚▼閲嶅惎涓嶄涪澶?
-### Token 浣撶郴
+### Hot/Cold Messages
 
 ```
-鐧诲綍 鈫?绛惧彂:
-  short_token (32 hex, 1h 鏈夋晥)
-  long_token  (64 hex, 30d 鏈夋晥)
-楠岃瘉 鈫?HMAC-SHA256 鍔犵洂姣斿
+send → Redis (hot zone, TTL=10min)
+            → archive every 30s
+      PostgreSQL (cold zone, persistent)
 ```
 
-## API 姒傝
+- Messages within 5 minutes go through Redis for fast read/write
+- Auto-archived to PostgreSQL after expiry
+- No data loss on process restart
 
-瀹屾暣鎺ュ彛鏂囨。瑙?[API.md](./API.md)
+### Token System
 
-**User Service (16 绔偣)**
+```
+login → issue:
+  short_token (32 hex, valid 1h)
+  long_token  (64 hex, valid 30d)
+verify → HMAC-SHA256 salted comparison
+```
 
-| 绔偣 | 鏉冮檺 | 璇存槑 |
-|------|------|------|
-| POST /register | 鍏紑 | 娉ㄥ唽 (棣栫敤鎴疯嚜鍔?admin) |
-| POST /login | 鍏紑 | 鐧诲綍 鈫?鍙?Token |
-| GET /verify | Bearer | Token 楠岃瘉 |
-| GET /users/me | Bearer | 褰撳墠鐢ㄦ埛 |
-| GET /tokens/me | Bearer | Token 鍒楄〃 |
-| POST /api-keys | Bearer | 鍒涘缓 API Key |
-| GET /internal/user/:id | 鍐呴儴瀵嗛挜 | 鐢ㄦ埛鏌ヨ |
-| GET/DELETE /admin/users | Admin | 鐢ㄦ埛绠＄悊 |
-| PUT /admin/users/:id/permission | Admin | 淇敼鏉冮檺 |
-| GET/DELETE /admin/tokens | Admin | Token 绠＄悊 |
-| GET /health, /ready, /metrics | 鍏紑 | 鍋ュ悍妫€鏌?|
+## API Overview
 
-**Chat Service (19 绔偣 + 5 WebSocket 浜嬩欢)**
+Full endpoint documentation: see [API.md](./API.md)
 
-| 绔偣 | 鏉冮檺 | 璇存槑 |
-|------|------|------|
-| POST /rooms/direct | Bearer | 鍒涘缓绉佽亰 |
-| POST /rooms/group | Bearer | 鍒涘缓缇よ亰 |
-| GET /rooms/:id/messages | Bearer | 娑堟伅鍘嗗彶 |
-| POST /rooms/:id/messages | Bearer | 鍙戦€佹秷鎭?|
-| GET/DELETE /admin/rooms | Admin | 鎴块棿绠＄悊 |
-| POST /admin/rooms/:id/members | Admin | 鎴愬憳绠＄悊 |
-| GET /admin/stats | Admin | 缁熻 |
+**User Service (16 endpoints)**
+
+| Endpoint | Permission | Description |
+|----------|------------|-------------|
+| POST /register | Public | Register (first user auto-admin) |
+| POST /login | Public | Login → issue Token |
+| GET /verify | Bearer | Token verification |
+| GET /users/me | Bearer | Current user |
+| GET /tokens/me | Bearer | Token list |
+| POST /api-keys | Bearer | Create API Key |
+| GET /internal/user/:id | Internal key | User lookup |
+| GET/DELETE /admin/users | Admin | User management |
+| PUT /admin/users/:id/permission | Admin | Update permission |
+| GET/DELETE /admin/tokens | Admin | Token management |
+| GET /health, /ready, /metrics | Public | Health checks |
+
+**Chat Service (19 endpoints + 5 WebSocket events)**
+
+| Endpoint | Permission | Description |
+|----------|------------|-------------|
+| POST /rooms/direct | Bearer | Create direct chat |
+| POST /rooms/group | Bearer | Create group chat |
+| GET /rooms/:id/messages | Bearer | Message history |
+| POST /rooms/:id/messages | Bearer | Send message |
+| GET/DELETE /admin/rooms | Admin | Room management |
+| POST /admin/rooms/:id/members | Admin | Member management |
+| GET /admin/stats | Admin | Statistics |
 
 **WebSocket**: `v1:join`, `v1:leave`, `v1:message`, `v1:online`, `v1:error`
 
-## 鎬ц兘
+## Performance
 
-| 鎸囨爣 | 鏁板€?|
-|------|------|
-| HTTP 骞跺彂 | 200 鍏ㄨ繃 |
-| 鍚炲悙閲?| 88 rps |
-| 鍝嶅簲寤惰繜 | p50=16ms, p99=2.1s |
-| 鏀拺鐢ㄦ埛 | 1700+ (鑱婂ぉ鍦烘櫙) |
+| Metric | Value |
+|--------|-------|
+| HTTP concurrency | 200 all pass |
+| Throughput | 88 rps |
+| Response latency | p50=16ms, p99=2.1s |
+| Supported users | 1700+ (chat scenario) |
 
-## 閮ㄧ讲
+## Deployment
 
-瑙?[DEPLOY.md](./DEPLOY.md)
+See [DEPLOY.md](./DEPLOY.md)
 
-## 鍓嶇
+## Frontend
 
-React 19 + TypeScript + Vite SPA锛岄儴缃插埌 Netlify锛坄yingo-server/chats-apps` 浠撳簱锛夈€?
-### 鎶€鏈爤
+React 19 + TypeScript + Vite SPA, deployed to Netlify (from the `yingo-server/chats-apps` repository).
+
+### Tech Stack
 
 - React 19 + TypeScript + Vite
-- Zustand锛堢姸鎬佺鐞嗭級+ persist 涓棿浠?- Tailwind CSS 4 + shadcn/ui 缁勪欢
-- Socket.IO Client锛堝疄鏃堕€氫俊锛?- React Router v7锛堣矾鐢憋級
-- Radix UI 鍘熻锛圖ialog/Dropdown/Tooltip 绛夛級
+- Zustand (state management) + persist middleware
+- Tailwind CSS 4 + shadcn/ui components
+- Socket.IO Client (real-time communication)
+- React Router v7 (routing)
+- Radix UI primitives (Dialog/Dropdown/Tooltip, etc.)
 
-### Bug 瀹℃煡
+### Bug Audit
 
-宸插彂鐜?**30 涓叧閿己闄?*锛岃瑙?[DEPLOY.md](./DEPLOY.md#鍓嶇缂洪櫡娓呭崟)銆?
-- **P0 宕╂簝绾?* 6 涓細null crash銆丼SR crash銆佹暟鎹敊涔?- **P1 鍔熻兘缂洪櫡** 16 涓細proxy 澶辨晥銆佺珵鎬併€佸唴瀛樻硠婕?- **P2 瀹夊叏缂洪櫡** 4 涓細XSS銆乼oken 鏆撮湶銆侀噸瀹氬悜涓㈠け
-- **P3 绫诲瀷缂洪櫡** 4 涓細绫诲瀷涓嶅畨鍏ㄣ€佸悗绔墿灞曟椂宕╂簝
+**30 key defects found**, see [DEPLOY.md](./DEPLOY.md#frontend-defect-list).
+- **P0 crash-level**: 6 — null crash, SSR crash, data corruption
+- **P1 functional defects**: 16 — proxy failure, race conditions, memory leaks
+- **P2 security defects**: 4 — XSS, token exposure, redirect loss
+- **P3 type defects**: 4 — type unsafe, backend extension crashes
 
-## 瀹夊叏
+## Security
 
-- Helmet 瀹夊叏澶?(CSP, HSTS, X-Frame-Options)
-- CORS 鍙厤缃?- 璇锋眰浣撻檺鍒?(User: 1MB, Chat: 64KB)
-- Token HMAC-SHA256 + Salt 瀛樺偍
-- API Key 128 浣嶉殢鏈?- 棣栫敤鎴疯嚜鍔?admin + advisory lock 闃插苟鍙?- Token 纰版挒鑷姩閲嶈瘯
-- 璇锋眰杩借釜 ID (UUID)
+- Helmet security headers (CSP, HSTS, X-Frame-Options)
+- Configurable CORS
+- Request body limits (User: 1MB, Chat: 64KB)
+- Token HMAC-SHA256 + Salt storage
+- API Key 128-bit random
+- First user auto-admin + advisory lock against concurrency
+- Token collision auto-retry
+- Request tracking ID (UUID)
 - Graceful Shutdown (SIGINT/SIGTERM)
 
-## 娴嬭瘯
+## Testing
 
 ```bash
 cd debug
-python main.py   # 杩愯 1253 椤归泦鎴愭祴璇?```
+python main.py   # runs 1253 integration tests
+```
