@@ -96,6 +96,22 @@
 }
 
 @layer utilities {
+  /* Frosted-glass sidebar.
+     NOTE: do NOT rely on Tailwind's supports-[backdrop-filter] variant here -
+     it compiles to @supports (backdrop-filter: var(--tw)) with --tw undefined,
+     which per CSS spec evaluates as NOT supported, so the glass never applied.
+     Use a concrete value instead. */
+  .sidebar-glass {
+    background-color: var(--muted);
+  }
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .sidebar-glass {
+      background-color: color-mix(in oklab, var(--muted) 40%, transparent);
+      -webkit-backdrop-filter: blur(24px);
+      backdrop-filter: blur(24px);
+    }
+  }
+
   /* One-shot slide animations so the element ends up with NO transform.
      Chromium skips backdrop-filter on composited (transformed) layers,
      which is why the mobile sidebar kept showing a plain translucent bg. */

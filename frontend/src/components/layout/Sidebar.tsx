@@ -60,12 +60,11 @@ export function Sidebar() {
 
   return (
     <>
-      {sidebarOpen && <div className="fixed inset-0 z-20 bg-black/60 supports-[backdrop-filter]:backdrop-blur-sm md:hidden" onClick={() => useUIStore.getState().setSidebarOpen(false)} />}
+      {sidebarOpen && <div className="fixed inset-0 z-20 bg-black/60 md:hidden" onClick={() => useUIStore.getState().setSidebarOpen(false)} />}
 
       <aside
         className={cn(
-          "flex h-full w-72 flex-col border-r",
-          "bg-muted/95 supports-[backdrop-filter]:bg-muted/40 supports-[backdrop-filter]:backdrop-blur-xl",
+          "flex h-full w-72 flex-col border-r sidebar-glass",
           "fixed inset-y-0 left-0 z-30 shadow-2xl md:relative md:shadow-none",
           // One-shot animations: transform returns to none after play, so backdrop-filter
           // actually renders (Chromium drops the backdrop on composited/transformed layers)
