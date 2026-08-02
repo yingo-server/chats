@@ -220,3 +220,30 @@ export interface AdminRemoveMemberOkRes {
 }
 
 export type AdminRemoveMemberRes = AdminRemoveMemberOkRes | ApiErr
+
+export interface RoomNote {
+  roomId: string
+  note: string
+}
+
+export interface RoomNotesOkRes {
+  ok: true
+  notes: RoomNote[]
+}
+
+export type RoomNotesRes = RoomNotesOkRes | ApiErr
+
+export interface SetRoomNoteOkRes {
+  ok: true
+  roomId: string
+  note: string | null
+}
+
+export type SetRoomNoteRes = SetRoomNoteOkRes | ApiErr
+
+export interface DeleteRoomOkRes {
+  ok: true
+  action: "deleted" | "left"
+}
+
+export type DeleteRoomRes = DeleteRoomOkRes | ApiErr

@@ -78,18 +78,27 @@ export default function ChatPage() {
     : null
   const dmPartnerName = dmPartner ? room.memberNames?.[dmPartner] : null
 
-  const headerTitle = room.type === "group" && room.name
+  const baseTitle = room.type === "group" && room.name
     ? room.name
     : dmPartnerName
-      ? `DM with ${dmPartnerName}`
+      ? dmPartnerName
       : dmPartner
-        ? `DM with ${dmPartner}`
+        ? dmPartner
         : "Direct Message"
+
+  const headerTitle = room.note || baseTitle
+  const headerSubtitle =
+    room.note && room.type === "group" && room.name && room.name !== room.note
+      ? room.name
+      : null
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 border-b px-4 py-2">
-        <h2 className="font-semibold">{headerTitle}</h2>
+        <div className="min-w-0">
+          <h2 className="truncate font-semibold">{headerTitle}</h2>
+          {headerSubtitle && <p className="truncate text-xs text-muted-foreground">{headerSubtitle}</p>}
+        </div>
         <span className="text-xs text-muted-foreground">{memberIds.length} members</span>
         {reconnecting && (
           <span className="ml-auto flex items-center gap-1 text-xs text-amber-500">

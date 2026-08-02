@@ -4,7 +4,7 @@ import type {
   SendMessageReq, SendMessageRes, CreateDirectReq, CreateGroupReq,
   AdminStatsRes, AdminSendMessageReq, AdminCreateDirectReq,
   AdminCreateGroupReq, AdminAddMemberReq, RoomMembersDetailRes,
-  AdminDeleteRes, AdminAddMemberRes, AdminRemoveMemberRes,
+  AdminDeleteRes, AdminAddMemberRes, AdminRemoveMemberRes, DeleteRoomRes,
 } from "@/types/api"
 
 export async function getRooms() {
@@ -81,4 +81,8 @@ export async function adminDeleteRoom(id: string) {
 
 export async function searchUsers(query: string) {
   return chatApi.get<{ ok: boolean; users: { id: string; globalName: string; appNames: Record<string, string> }[] }>(`/api/v1/users/search?query=${encodeURIComponent(query)}`)
+}
+
+export async function deleteRoom(id: string) {
+  return chatApi.delete<DeleteRoomRes>(`/api/v1/rooms/${id}`)
 }

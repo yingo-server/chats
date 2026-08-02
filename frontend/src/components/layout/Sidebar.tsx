@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router"
 import { MessageSquarePlus, Search } from "lucide-react"
 import { useRoomStore } from "@/stores/useRoomStore"
@@ -9,8 +9,16 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { RoomItem } from "@/components/rooms/RoomItem"
 import { CreateRoom } from "@/components/rooms/CreateRoom"
-import { useState } from "react"
+import { RoomContextMenu } from "@/components/rooms/RoomContextMenu"
+import { RoomDialogs } from "@/components/rooms/RoomDialogs"
 import { cn } from "@/lib/utils"
+import type { Room } from "@/types/models"
+
+interface MenuState {
+  room: Room
+  x: number
+  y: number
+}
 
 export function Sidebar() {
   const navigate = useNavigate()
@@ -20,6 +28,10 @@ export function Sidebar() {
   const sidebarOpen = useUIStore((s) => s.sidebarOpen)
   const [search, setSearch] = useState("")
   const [showCreate, setShowCreate] = useState(false)
+  const [menu, setMenu] = useState<MenuState | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Room | null>(null)
+  const [noteTarget, setNoteTarget] = useState<Room | null>(null)
+  const [infoTarget, setInfoTarget] = useState<Room | null>(null)
 
   useEffect(() => {
     fetchRooms()
@@ -38,6 +50,12 @@ export function Sidebar() {
     if (window.innerWidth < 768) {
       useUIStore.getState().setSidebarOpen(false)
     }
+  }
+
+  const closeDialogs = () => {
+    setDeleteTarget(null)
+    setNoteTarget(null)
+    setInfoTarget(null)
   }
 
   return (
@@ -82,6 +100,7 @@ export function Sidebar() {
                   room={room}
                   active={room.id === (roomId || currentRoomId)}
                   onClick={() => handleSelect(room.id)}
+                  onOpenMenu={(r, x, y) => setMenu({ room: r, x, y })}
                 />
               ))}
               {filtered.length === 0 && (
@@ -95,6 +114,36 @@ export function Sidebar() {
 
         <CreateRoom open={showCreate} onOpenChange={setShowCreate} />
       </aside>
+
+      {menu && (
+        <RoomContextMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          items={[
+            {
+              label: "Rename Note",
+              onClick: () => setNoteTarget(menu.room),
+            },
+            {
+              label: "Properties",
+              onClick: () => setInfoTarget(menu.room),
+            },
+            {
+              label: menu.room.type === "direct" ? "Delete Conversation" : "Leave Group",
+              danger: true,
+              onClick: () => setDeleteTarget(menu.room),
+            },
+          ]}
+        />
+      )}
+
+      <RoomDialogs
+        deleteTarget={deleteTarget}
+        noteTarget={noteTarget}
+        infoTarget={infoTarget}
+        onClose={closeDialogs}
+      />
     </>
   )
 }

@@ -2,7 +2,7 @@ import { userApi } from "./client"
 import type {
   UsersMeRes, TokensMeRes, CreateApiKeyReq, CreateApiKeyRes,
   AdminUsersRes, AdminTokensRes, AdminPermissionReq, AdminPermissionRes,
-  AdminDeleteRes, AdminRevokeRes,
+  AdminDeleteRes, AdminRevokeRes, RoomNotesRes, SetRoomNoteRes,
 } from "@/types/api"
 
 export async function getMe() {
@@ -43,4 +43,12 @@ export async function adminGetTokens() {
 
 export async function adminRevokeToken(id: string) {
   return userApi.delete<AdminRevokeRes>(`/api/v1/admin/tokens/${id}`)
+}
+
+export async function getRoomNotes() {
+  return userApi.get<RoomNotesRes>("/api/v1/me/room-notes")
+}
+
+export async function setRoomNote(roomId: string, note: string) {
+  return userApi.put<SetRoomNoteRes>(`/api/v1/me/room-notes/${roomId}`, { note })
 }

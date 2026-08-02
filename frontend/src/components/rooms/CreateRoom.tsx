@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 
 interface CreateRoomProps {
   open: boolean
@@ -29,6 +29,7 @@ export function CreateRoom({ open, onOpenChange }: CreateRoomProps) {
   const [groupSearchResults, setGroupSearchResults] = useState<{ id: string; globalName: string }[]>([])
   const [groupSearching, setGroupSearching] = useState(false)
   const [groupSelected, setGroupSelected] = useState<{ id: string; globalName: string }[]>([])
+  const [confirmGroup, setConfirmGroup] = useState(false)
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -147,6 +148,11 @@ export function CreateRoom({ open, onOpenChange }: CreateRoomProps) {
     }
   }
 
+  const confirmGroupCreate = () => {
+    setError("")
+    setConfirmGroup(true)
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
@@ -205,6 +211,10 @@ export function CreateRoom({ open, onOpenChange }: CreateRoomProps) {
             <div className="space-y-2">
               <Label>Group Name (optional)</Label>
               <Input placeholder="Enter group name" value={groupName} onChange={(e) => setGroupName(e.target.value)} />
+              <p className="text-xs text-muted-foreground">
+                Warning: the group name cannot be changed after creation. Use the per-room note to customize how it is
+                displayed to you.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Add Members</Label>
@@ -249,12 +259,31 @@ export function CreateRoom({ open, onOpenChange }: CreateRoomProps) {
               <Label>More Member IDs (comma-separated)</Label>
               <Input placeholder="user1, user2, user3" value={groupMembers} onChange={(e) => setGroupMembers(e.target.value)} />
             </div>
-            <Button className="w-full" onClick={handleCreateGroup} disabled={loading}>
+            <Button className="w-full" onClick={confirmGroupCreate} disabled={loading}>
               {loading ? "Creating..." : "Create Group"}
             </Button>
           </TabsContent>
         </Tabs>
       </DialogContent>
+      <Dialog open={confirmGroup} onOpenChange={setConfirmGroup}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Confirm Group Creation</DialogTitle>
+            <DialogDescription>
+              The group name cannot be changed after creation. It can only be customized for yourself through the note
+              feature. Continue?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setConfirmGroup(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => { setConfirmGroup(false); handleCreateGroup() }}>
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   )
 }

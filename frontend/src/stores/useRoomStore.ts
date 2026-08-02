@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import type { Room } from "@/types/models"
 import * as chatApi from "@/api/chat"
+import { getRoomNotes } from "@/api/user"
 
 interface RoomState {
   rooms: Room[]
@@ -12,6 +13,8 @@ interface RoomState {
   createDirect: (targetUserId: string) => Promise<Room>
   createGroup: (name?: string, memberIds?: string[]) => Promise<Room>
   upsertRoom: (room: Room) => void
+  removeRoom: (id: string) => void
+  setRoomNote: (roomId: string, note: string) => void
 }
 
 export const useRoomStore = create<RoomState>((set, get) => ({
@@ -24,8 +27,16 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     set({ loading: true, fetchError: false })
     try {
       const res = await chatApi.getRooms()
-      if (res.ok) set({ rooms: res.rooms })
-      else set({ fetchError: true })
+      if (res.ok) {
+        let noteMap: Record<string, string> = {}
+        try {
+          const notesRes = await getRoomNotes()
+          if (notesRes.ok) {
+            noteMap = Object.fromEntries(notesRes.notes.map((n) => [n.roomId, n.note]))
+          }
+        } catch {}
+        set({ rooms: res.rooms.map((r) => ({ ...r, note: noteMap[r.id] || undefined })) })
+      } else set({ fetchError: true })
     } catch {
       set({ fetchError: true })
     } finally {
@@ -57,5 +68,20 @@ export const useRoomStore = create<RoomState>((set, get) => ({
       }
       return { rooms: [room, ...state.rooms] }
     })
+  },
+
+  removeRoom: (id) => {
+    set((state) => ({
+      rooms: state.rooms.filter((r) => r.id !== id),
+      currentRoomId: state.currentRoomId === id ? null : state.currentRoomId,
+    }))
+  },
+
+  setRoomNote: (roomId, note) => {
+    set((state) => ({
+      rooms: state.rooms.map((r) =>
+        r.id === roomId ? { ...r, note: note || undefined } : r
+      ),
+    }))
   },
 }))

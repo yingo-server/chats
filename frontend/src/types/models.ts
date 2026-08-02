@@ -40,6 +40,7 @@ export interface Room {
   createdAt: number
   memberIds: string[]
   memberNames?: Record<string, string>
+  note?: string
 }
 
 export interface Message {
