@@ -244,28 +244,36 @@ export async function getMessages(roomId: string, userId: string, cursor?: strin
   };
 }
 
+// ═══ Attach member IDs and display names to a room object ═══
+async function roomWithMembers(room: any, memberIds: string[]) {
+  const users = await Promise.all(memberIds.map(id => fetchUser(id)));
+  const memberNames: Record<string, string> = {};
+  for (const u of users) {
+    if (u?.global_name) memberNames[u.id] = u.global_name;
+  }
+  return { ...room, memberIds, memberNames };
+}
+
 // ═══ Create room ═══
 export async function createRoom(type: string, createdBy: string, name?: string, memberIds?: string[]) {
   const id = genId();
   const now = Date.now();
+  const uniqueIds = [...new Set(memberIds || [])].filter(uid => uid && typeof uid === "string" && uid !== createdBy);
   try {
     await db.transaction(async (tx) => {
       await tx.insert(rooms).values({ id, type, name: name || null, creatorId: createdBy, createdAt: now });
       await tx.insert(roomMembers).values({ id: genId(), roomId: id, userId: createdBy, joinedAt: now });
-      if (memberIds && memberIds.length > 0) {
-        const uniqueIds = [...new Set(memberIds)].filter(uid => uid && typeof uid === "string" && uid !== createdBy);
-        if (uniqueIds.length > 0) {
-          await tx.insert(roomMembers).values(
-            uniqueIds.map(uid => ({ id: genId(), roomId: id, userId: uid, joinedAt: now }))
-          ).onConflictDoNothing();
-        }
+      if (uniqueIds.length > 0) {
+        await tx.insert(roomMembers).values(
+          uniqueIds.map(uid => ({ id: genId(), roomId: id, userId: uid, joinedAt: now }))
+        ).onConflictDoNothing();
       }
     });
   } catch (e: any) {
     log.error({ err: e, roomId: id }, "createRoom transaction failed");
     throw e;
   }
-  return { id, type, name: name || null, creatorId: createdBy, createdAt: now };
+  return await roomWithMembers({ id, type, name: name || null, creatorId: createdBy, createdAt: now }, [createdBy, ...uniqueIds]);
 }
 
 // ═══ Find an existing direct room between two users ═══
@@ -301,7 +309,7 @@ export async function createDirectRoom(a: string, b: string) {
     if (existing) {
       const detail = await getRoomDetail(existing);
       if (detail) return detail;
-      return { id: existing, type: "direct", name: null, creatorId: a, createdAt: Date.now() };
+      return await roomWithMembers({ id: existing, type: "direct", name: null, creatorId: a, createdAt: Date.now() }, [u1, u2]);
     }
     return await createRoom("direct", a, undefined, [b]);
   } finally {
