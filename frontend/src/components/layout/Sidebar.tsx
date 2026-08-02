@@ -60,12 +60,12 @@ export function Sidebar() {
 
   return (
     <>
-      {sidebarOpen && <div className="fixed inset-0 z-20 bg-black/50 md:hidden" onClick={() => useUIStore.getState().setSidebarOpen(false)} />}
+      {sidebarOpen && <div className="fixed inset-0 z-20 bg-black/60 backdrop-blur-sm md:hidden" onClick={() => useUIStore.getState().setSidebarOpen(false)} />}
 
       <aside
         className={cn(
-          "flex h-full w-72 flex-col border-r bg-muted/40 transition-transform duration-200",
-          "fixed inset-y-0 left-0 z-30 md:relative md:translate-x-0",
+          "flex h-full w-72 flex-col border-r bg-muted/40 backdrop-blur-xl transition-transform duration-200",
+          "fixed inset-y-0 left-0 z-30 shadow-2xl md:relative md:translate-x-0 md:shadow-none",
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
