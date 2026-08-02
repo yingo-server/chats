@@ -1,10 +1,13 @@
 import { useNavigate } from "react-router"
-import { LogOut, User, MessageSquare } from "lucide-react"
+import { useState } from "react"
+import { LogOut, User, MessageSquare, Info } from "lucide-react"
 import { useAuthStore } from "@/stores/useAuthStore"
 import { useUIStore } from "@/stores/useUIStore"
+import { APP_VERSION } from "@/lib/version"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ThemeToggle } from "./ThemeToggle"
 import { Menu } from "lucide-react"
@@ -13,6 +16,7 @@ export function Header() {
   const navigate = useNavigate()
   const { user, permission, logout } = useAuthStore()
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
+  const [aboutOpen, setAboutOpen] = useState(false)
 
   const handleLogout = () => {
     logout()
@@ -63,12 +67,32 @@ export function Header() {
             Profile
           </DropdownMenuItem>
           <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => setAboutOpen(true)}>
+            <Info className="mr-2 h-4 w-4" />
+            About & Version
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onClick={handleLogout}>
             <LogOut className="mr-2 h-4 w-4" />
             Logout
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Dialog open={aboutOpen} onOpenChange={setAboutOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>About Yingo</DialogTitle>
+            <DialogDescription>Build information</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Version</span>
+              <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{APP_VERSION}</code>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </header>
   )
 }
