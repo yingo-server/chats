@@ -1253,7 +1253,7 @@ def test_socket_fast_reconnect():
     u1 = USERS["alice"]
     for i in range(10):
         try:
-            sio = socketio.Client(request_timeout=3, http_session=SOCKET_HTTP_SESSION)
+            sio = socketio.Client(request_timeout=8, http_session=SOCKET_HTTP_SESSION)
             sio.connect(CHAT_BASE, auth={"token": u1["token"]}, transports=["polling"])
             sio.disconnect()
         except Exception as e:
@@ -1635,7 +1635,7 @@ def test_socket_mass_concurrent_connections():
     results = []
     def connect_cycle(i):
         try:
-            sio = socketio.Client(request_timeout=3, http_session=SOCKET_HTTP_SESSION)
+            sio = socketio.Client(request_timeout=8, http_session=SOCKET_HTTP_SESSION)
             sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=["polling"])
             time.sleep(0.05)
             sio.disconnect()

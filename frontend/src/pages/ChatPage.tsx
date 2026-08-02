@@ -76,12 +76,15 @@ export default function ChatPage() {
   const dmPartner = room.type === "direct"
     ? memberIds.find((id) => id !== user?.id)
     : null
+  const dmPartnerName = dmPartner ? room.memberNames?.[dmPartner] : null
 
   const headerTitle = room.type === "group" && room.name
     ? room.name
-    : dmPartner
-      ? `DM with ${dmPartner}`
-      : "Direct Message"
+    : dmPartnerName
+      ? `DM with ${dmPartnerName}`
+      : dmPartner
+        ? `DM with ${dmPartner}`
+        : "Direct Message"
 
   return (
     <div className="flex h-full flex-col">

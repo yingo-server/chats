@@ -9,6 +9,10 @@ export async function getMe() {
   return userApi.get<UsersMeRes>("/api/v1/users/me")
 }
 
+export async function getUser(id: string) {
+  return userApi.get<UsersMeRes>(`/api/v1/users/${id}`)
+}
+
 export async function getMyTokens() {
   return userApi.get<TokensMeRes>("/api/v1/tokens/me")
 }

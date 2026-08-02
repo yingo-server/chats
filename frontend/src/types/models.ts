@@ -39,6 +39,7 @@ export interface Room {
   creatorId: string
   createdAt: number
   memberIds: string[]
+  memberNames?: Record<string, string>
 }
 
 export interface Message {

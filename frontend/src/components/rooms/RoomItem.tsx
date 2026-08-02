@@ -14,14 +14,18 @@ export function RoomItem({ room, active, onClick }: RoomItemProps) {
   const user = useAuthStore((s) => s.user)
   const onlineMap = useOnlineStatus()
 
+  const otherUserId = room.type === "direct" ? room.memberIds.find((id) => id !== user?.id) : null
+  const otherName = otherUserId ? room.memberNames?.[otherUserId] : null
+
   const displayName =
     room.type === "group" && room.name
       ? room.name
-      : room.type === "direct"
-        ? `DM ${room.memberIds.filter((id) => id !== user?.id).join(", ")}`
-        : room.id
+      : room.type === "direct" && otherName
+        ? `DM ${otherName}`
+        : room.type === "direct"
+          ? `DM ${room.memberIds.filter((id) => id !== user?.id).join(", ")}`
+          : room.id
 
-  const otherUserId = room.type === "direct" ? room.memberIds.find((id) => id !== user?.id) : null
   const isOnline = otherUserId ? onlineMap[otherUserId] : false
 
   return (

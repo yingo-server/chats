@@ -174,6 +174,19 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     return reply.send({ ok: true, user });
   });
 
+  // ═══ Get a user's profile by ID (authenticated users only, public fields) ═══
+  app.get("/api/v1/users/:id", async (req, reply) => {
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith("Bearer ")) return reply.status(401).send({ ok: false, error: "missing token" });
+    const payload = await verifyToken(auth.slice(7));
+    if (!payload) return reply.status(401).send({ ok: false, error: "invalid token" });
+    const { id } = req.params as any;
+    if (typeof id !== "string" || id.length > 16) return reply.status(400).send({ ok: false, error: "invalid id" });
+    const user = await getUserById(id);
+    if (!user) return reply.status(404).send({ ok: false, error: "user not found" });
+    return reply.send({ ok: true, user });
+  });
+
   // ═══ Get current user token list ═══
   app.get("/api/v1/tokens/me", async (req, reply) => {
     const auth = req.headers.authorization;

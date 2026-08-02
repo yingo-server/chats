@@ -30,7 +30,7 @@ export default function ProfilePage() {
     if (isOwn || !user) return
     setLoading(true)
     setLoadError(false)
-    userApi.adminGetUser(id!).then((res) => {
+    userApi.getUser(id!).then((res) => {
       if (res.ok && res.user) {
         setDisplayUser({
           id: res.user.id,

@@ -56,10 +56,26 @@ export async function getUserRooms(userId: string) {
     membersMap.set(m.roomId, arr);
   }
 
-  return roomRows.map(r => ({
+  const list = roomRows.map(r => ({
     ...r,
     memberIds: membersMap.get(r.id) || [],
   }));
+
+  // Attach member display names for direct rooms so the client can render them
+  const directRooms = list.filter(r => r.type === "direct");
+  if (directRooms.length > 0) {
+    const memberIds = [...new Set(directRooms.flatMap(r => r.memberIds))];
+    if (memberIds.length > 0) {
+      const users = await Promise.all(memberIds.map(id => fetchUser(id)));
+      const nameMap: Record<string, string> = {};
+      for (const u of users) {
+        if (u?.global_name) nameMap[u.id] = u.global_name;
+      }
+      for (const r of directRooms) (r as any).memberNames = nameMap;
+    }
+  }
+
+  return list;
 }
 
 // ═══ Get single room detail ═══
