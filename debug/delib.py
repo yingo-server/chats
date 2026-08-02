@@ -1130,11 +1130,11 @@ def test_short_and_long_token_verify():
 
 # ═══ Socket.IO tests ═══
 def test_socket_connect_valid():
-    sio = socketio.Client(request_timeout=5, http_session=SOCKET_HTTP_SESSION)
+    sio = socketio.Client(request_timeout=5, ssl_verify=False)
     connected = []
     sio.on("connect", lambda: connected.append(True))
     try:
-        sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=["polling"])
+        sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=_CURRENT_SOCKET_TRANSPORT)
         tr = TR()
         tr.expected = "socket connects"
         tr.actual = "connected" if connected else "not connected"
@@ -1146,11 +1146,11 @@ def test_socket_connect_valid():
         sio.disconnect()
 
 def test_socket_connect_invalid_token():
-    sio = socketio.Client(request_timeout=5, http_session=SOCKET_HTTP_SESSION)
+    sio = socketio.Client(request_timeout=5, ssl_verify=False)
     err = []
     sio.on("connect_error", lambda e: err.append(str(e)))
     try:
-        sio.connect(CHAT_BASE, auth={"token": "invalid_token_xxx"}, transports=["polling"])
+        sio.connect(CHAT_BASE, auth={"token": "invalid_token_xxx"}, transports=_CURRENT_SOCKET_TRANSPORT)
     except Exception as e:
         err.append(str(e))
     finally:
@@ -1165,9 +1165,9 @@ def test_socket_connect_invalid_token():
 
 def test_socket_join_room():
     rid = USERS.get("direct_room_id") or USERS.get("group_room_id")
-    sio = socketio.Client(request_timeout=5, http_session=SOCKET_HTTP_SESSION)
+    sio = socketio.Client(request_timeout=5, ssl_verify=False)
     try:
-        sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=["polling"])
+        sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=_CURRENT_SOCKET_TRANSPORT)
         sio.emit("v1:join", {"roomId": rid})
         time.sleep(0.5)
         return TR()
@@ -1176,10 +1176,10 @@ def test_socket_join_room():
 
 def test_socket_send_message():
     rid = USERS.get("direct_room_id") or USERS.get("group_room_id")
-    sio = socketio.Client(request_timeout=8, http_session=SOCKET_HTTP_SESSION)
+    sio = socketio.Client(request_timeout=8, ssl_verify=False)
     ack_data = []
     try:
-        sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=["polling"])
+        sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=_CURRENT_SOCKET_TRANSPORT)
         time.sleep(0.5)
         sio.emit("v1:join", {"roomId": rid})
         time.sleep(0.5)
@@ -1196,11 +1196,11 @@ def test_socket_send_message():
     return tr
 
 def test_socket_join_missing_room():
-    sio = socketio.Client(request_timeout=5, http_session=SOCKET_HTTP_SESSION)
+    sio = socketio.Client(request_timeout=5, ssl_verify=False)
     err_data = []
     sio.on("v1:error", lambda d: err_data.append(d))
     try:
-        sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=["polling"])
+        sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=_CURRENT_SOCKET_TRANSPORT)
         sio.emit("v1:join", {"roomId": "9999999999999999"})
         time.sleep(0.5)
     finally:
@@ -1215,9 +1215,9 @@ def test_socket_join_missing_room():
 
 def test_socket_leave_room():
     rid = USERS.get("direct_room_id") or USERS.get("group_room_id")
-    sio = socketio.Client(request_timeout=5, http_session=SOCKET_HTTP_SESSION)
+    sio = socketio.Client(request_timeout=5, ssl_verify=False)
     try:
-        sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=["polling"])
+        sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=_CURRENT_SOCKET_TRANSPORT)
         sio.emit("v1:join", {"roomId": rid})
         time.sleep(0.3)
         sio.emit("v1:leave", {"roomId": rid})
@@ -1228,12 +1228,12 @@ def test_socket_leave_room():
 
 def test_socket_concurrent_messages():
     rid = USERS.get("direct_room_id") or USERS.get("group_room_id")
-    sio = socketio.Client(request_timeout=5, http_session=SOCKET_HTTP_SESSION)
+    sio = socketio.Client(request_timeout=5, ssl_verify=False)
     ack_count = [0]
     def on_ack(d):
         if d.get("ok"): ack_count[0] += 1
     try:
-        sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=["polling"])
+        sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=_CURRENT_SOCKET_TRANSPORT)
         sio.emit("v1:join", {"roomId": rid})
         time.sleep(0.3)
         for i in range(5):
@@ -1253,8 +1253,8 @@ def test_socket_fast_reconnect():
     u1 = USERS["alice"]
     for i in range(10):
         try:
-            sio = socketio.Client(request_timeout=8, http_session=SOCKET_HTTP_SESSION)
-            sio.connect(CHAT_BASE, auth={"token": u1["token"]}, transports=["polling"])
+            sio = socketio.Client(request_timeout=8, ssl_verify=False)
+            sio.connect(CHAT_BASE, auth={"token": u1["token"]}, transports=_CURRENT_SOCKET_TRANSPORT)
             sio.disconnect()
         except Exception as e:
             tr = TR()
@@ -1544,8 +1544,8 @@ def test_socket_multi_client_same_room():
                 ack_count[0] += 1
     try:
         for i in range(5):
-            sio = socketio.Client(request_timeout=5, http_session=SOCKET_HTTP_SESSION)
-            sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=["polling"])
+            sio = socketio.Client(request_timeout=5, ssl_verify=False)
+            sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=_CURRENT_SOCKET_TRANSPORT)
             sio.emit("v1:join", {"roomId": rid})
             sockets.append(sio)
         time.sleep(0.5)
@@ -1570,16 +1570,16 @@ def test_socket_multi_client_broadcast():
     sios = []
     try:
         for i in range(3):
-            sio = socketio.Client(request_timeout=8, http_session=SOCKET_HTTP_SESSION)
+            sio = socketio.Client(request_timeout=8, ssl_verify=False)
             idx = i
             sio.on("v1:message", lambda d, _idx=idx: received[_idx].append(d))
-            sio.connect(CHAT_BASE, auth={"token": USERS["bob"]["token"]}, transports=["polling"])
+            sio.connect(CHAT_BASE, auth={"token": USERS["bob"]["token"]}, transports=_CURRENT_SOCKET_TRANSPORT)
             time.sleep(0.3)
             sio.emit("v1:join", {"roomId": rid})
             sios.append(sio)
         time.sleep(1)
-        sio_sender = socketio.Client(request_timeout=8, http_session=SOCKET_HTTP_SESSION)
-        sio_sender.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=["polling"])
+        sio_sender = socketio.Client(request_timeout=8, ssl_verify=False)
+        sio_sender.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=_CURRENT_SOCKET_TRANSPORT)
         time.sleep(0.5)
         sio_sender.emit("v1:join", {"roomId": rid})
         time.sleep(0.5)
@@ -1607,9 +1607,9 @@ def test_socket_client_switch_room():
     rid2 = r.json().get("room", {}).get("id") if r.status_code == 201 else rid1
     if r.status_code == 201:
         track_room(rid2)
-    sio = socketio.Client(request_timeout=8, http_session=SOCKET_HTTP_SESSION)
+    sio = socketio.Client(request_timeout=8, ssl_verify=False)
     try:
-        sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=["polling"])
+        sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=_CURRENT_SOCKET_TRANSPORT)
         time.sleep(0.5)
         sio.emit("v1:join", {"roomId": rid1})
         time.sleep(0.5)
@@ -1635,8 +1635,8 @@ def test_socket_mass_concurrent_connections():
     results = []
     def connect_cycle(i):
         try:
-            sio = socketio.Client(request_timeout=8, http_session=SOCKET_HTTP_SESSION)
-            sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=["polling"])
+            sio = socketio.Client(request_timeout=8, ssl_verify=False)
+            sio.connect(CHAT_BASE, auth={"token": USERS["alice"]["token"]}, transports=_CURRENT_SOCKET_TRANSPORT)
             time.sleep(0.05)
             sio.disconnect()
             results.append(True)
@@ -2322,6 +2322,31 @@ SUITES = [
     ]),
 ]
 
+# ═══ Socket transports: every socket test runs over both polling and websocket ═══
+SOCKET_TRANSPORTS = ["polling", "websocket"]
+_CURRENT_SOCKET_TRANSPORT = ["polling"]
+
+def _with_transport(fn, tp):
+    def _w():
+        _CURRENT_SOCKET_TRANSPORT[0] = tp
+        try:
+            return fn()
+        finally:
+            _CURRENT_SOCKET_TRANSPORT[0] = "polling"
+    _w.__name__ = f"{fn.__name__}[{tp}]"
+    return _w
+
+for _i, (_name, _tests) in enumerate(SUITES):
+    if _name in ("Socket.IO", "Token Lifecycle", "WebSocket Multi-Client"):
+        _expanded = []
+        for _fn, _times in _tests:
+            if _fn.__name__.startswith("test_socket"):
+                for _tp in SOCKET_TRANSPORTS:
+                    _expanded.append((_with_transport(_fn, _tp), _times))
+            else:
+                _expanded.append((_fn, _times))
+        SUITES[_i] = (_name, _expanded)
+
 def run_all():
     global PASS, FAIL, EXPECTED_FAIL, ERRORS
     PASS = 0
@@ -2360,7 +2385,7 @@ def run_all():
         try:
             cmd = f"UPDATE users SET permission = 'admin' WHERE id = '{alice_id}';"
             subprocess.run(
-                ["docker", "exec", "yingo-servergithubio-main-user-db-1",
+                ["docker", "exec", "user-user-db-1",
                  "psql", "-U", "yingo", "-d", "cold_user", "-c", cmd],
                 capture_output=True, text=True, timeout=10, check=True
             )
