@@ -15,6 +15,7 @@ dist-ssr
 # Environment (use Netlify panel variables in production)
 .env
 !.env.example
+!.env
 
 # Editor directories and files
 .vscode/*
