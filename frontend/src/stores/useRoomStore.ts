@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import type { Room } from "@/types/models"
+import type { Room, Message } from "@/types/models"
 import * as chatApi from "@/api/chat"
 import { getRoomNotes } from "@/api/user"
 
@@ -8,6 +8,7 @@ interface RoomState {
   currentRoomId: string | null
   loading: boolean
   fetchError: boolean
+  unread: Record<string, number>
   fetchRooms: () => Promise<void>
   setCurrentRoom: (id: string | null) => void
   createDirect: (targetUserId: string) => Promise<Room>
@@ -15,6 +16,8 @@ interface RoomState {
   upsertRoom: (room: Room) => void
   removeRoom: (id: string) => void
   setRoomNote: (roomId: string, note: string) => void
+  onIncomingMessage: (msg: Message) => void
+  clearUnread: (roomId: string) => void
 }
 
 export const useRoomStore = create<RoomState>((set, get) => ({
@@ -22,6 +25,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   currentRoomId: null,
   loading: false,
   fetchError: false,
+  unread: {},
 
   fetchRooms: async () => {
     set({ loading: true, fetchError: false })
@@ -88,5 +92,25 @@ export const useRoomStore = create<RoomState>((set, get) => ({
         r.id === roomId ? { ...r, note: note || undefined } : r
       ),
     }))
+  },
+
+  onIncomingMessage: (msg) => {
+    set((state) => {
+      if (state.currentRoomId === msg.roomId) return state
+      const room = state.rooms.find((r) => r.id === msg.roomId)
+      if (!room) return state
+      const unread = { ...state.unread, [msg.roomId]: (state.unread[msg.roomId] || 0) + 1 }
+      const rooms = [{ ...room, lastMsgAt: msg.sentAt }, ...state.rooms.filter((r) => r.id !== msg.roomId)]
+      return { unread, rooms }
+    })
+  },
+
+  clearUnread: (roomId) => {
+    set((state) => {
+      if (!state.unread[roomId]) return state
+      const unread = { ...state.unread }
+      delete unread[roomId]
+      return { unread }
+    })
   },
 }))

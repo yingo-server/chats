@@ -11,8 +11,8 @@ import { useAuthStore } from "@/stores/useAuthStore"
 
 export default function ChatPage() {
   const { roomId } = useParams<{ roomId: string }>()
-  const { currentRoomId, setCurrentRoom, rooms, loading, fetchError } = useRoomStore()
-  const { joinRoom, leaveRoom, connected } = useSocket()
+  const { currentRoomId, setCurrentRoom, rooms, loading, fetchError, clearUnread } = useRoomStore()
+  const { joinRoom, joinRooms, leaveRoom, connected } = useSocket()
   const user = useAuthStore((s) => s.user)
   const [reconnecting, setReconnecting] = useState(false)
 
@@ -28,6 +28,16 @@ export default function ChatPage() {
       return () => leaveRoom(currentRoomId)
     }
   }, [currentRoomId, joinRoom, leaveRoom])
+
+  useEffect(() => {
+    if (currentRoomId) clearUnread(currentRoomId)
+  }, [currentRoomId, clearUnread])
+
+  useEffect(() => {
+    if (connected && rooms.length > 0) {
+      joinRooms(rooms.map((r) => r.id))
+    }
+  }, [connected, rooms, joinRooms])
 
   useEffect(() => {
     if (!connected && currentRoomId) {

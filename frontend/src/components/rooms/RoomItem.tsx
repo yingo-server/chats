@@ -1,6 +1,7 @@
 import { useRef } from "react"
 import type { Room } from "@/types/models"
 import { useAuthStore } from "@/stores/useAuthStore"
+import { useRoomStore } from "@/stores/useRoomStore"
 import { useOnlineStatus } from "@/hooks/useOnlineStatus"
 import { cn } from "@/lib/utils"
 import { timeAgo } from "@/lib/utils"
@@ -14,6 +15,7 @@ interface RoomItemProps {
 
 export function RoomItem({ room, active, onClick, onOpenMenu }: RoomItemProps) {
   const user = useAuthStore((s) => s.user)
+  const unread = useRoomStore((s) => s.unread)
   const onlineMap = useOnlineStatus()
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const suppressClickRef = useRef(false)
@@ -99,7 +101,14 @@ export function RoomItem({ room, active, onClick, onOpenMenu }: RoomItemProps) {
           {room.type === "group" ? `${memberIds.length} members` : isOnline ? "Online" : "Offline"}
         </div>
       </div>
-      <div className="text-[10px] text-muted-foreground">{timeAgo(room.createdAt)}</div>
+      <div className="flex items-center gap-2">
+        <div className="text-[10px] text-muted-foreground">{timeAgo(room.lastMsgAt ?? room.createdAt)}</div>
+        {unread[room.id] > 0 && (
+          <span className="rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-medium leading-none text-primary-foreground">
+            {unread[room.id]}
+          </span>
+        )}
+      </div>
     </button>
   )
 }

@@ -4,6 +4,7 @@ import type { Message } from "@/types/models"
 import type { SocketOnlinePayload, SocketErrorPayload } from "@/types/socket"
 import { useAuthStore } from "@/stores/useAuthStore"
 import { useMessageStore } from "@/stores/useMessageStore"
+import { useRoomStore } from "@/stores/useRoomStore"
 import { useToast } from "@/components/ui/toast"
 
 export function useSocket() {
@@ -32,7 +33,12 @@ export function useSocket() {
     socket.on("disconnect", () => setConnected(false))
 
     socket.on("v1:message", (msg: Message) => {
-      useMessageStore.getState().prependMessage(msg)
+      const { lastRoomId } = useMessageStore.getState()
+      if (lastRoomId === msg.roomId) {
+        useMessageStore.getState().prependMessage(msg)
+      } else {
+        useRoomStore.getState().onIncomingMessage(msg)
+      }
     })
 
     socket.on("v1:online", (payload: SocketOnlinePayload) => {
@@ -56,6 +62,14 @@ export function useSocket() {
   const joinRoom = useCallback((roomId: string) => {
     joinedRoomsRef.current.add(roomId)
     socketRef.current?.emit("v1:join", { roomId })
+  }, [])
+
+  const joinRooms = useCallback((roomIds: string[]) => {
+    const socket = socketRef.current
+    for (const roomId of roomIds) {
+      joinedRoomsRef.current.add(roomId)
+      socket?.emit("v1:join", { roomId })
+    }
   }, [])
 
   const leaveRoom = useCallback((roomId: string) => {
@@ -89,5 +103,5 @@ export function useSocket() {
     []
   )
 
-  return { connected, joinRoom, leaveRoom, sendMessage }
+  return { connected, joinRoom, joinRooms, leaveRoom, sendMessage }
 }

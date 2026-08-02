@@ -41,6 +41,7 @@ export interface Room {
   memberIds: string[]
   memberNames?: Record<string, string>
   note?: string
+  lastMsgAt?: number
 }
 
 export interface Message {

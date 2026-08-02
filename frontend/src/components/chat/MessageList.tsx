@@ -30,6 +30,7 @@ export function MessageList() {
     fetchMessages(currentRoomId).then(() => {
       if (fetchId === fetchIdRef.current) {
         scrollToBottom()
+        useRoomStore.getState().clearUnread(currentRoomId)
       }
     })
   }, [currentRoomId, fetchMessages])
