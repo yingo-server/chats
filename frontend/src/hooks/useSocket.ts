@@ -4,12 +4,14 @@ import type { Message } from "@/types/models"
 import type { SocketOnlinePayload, SocketErrorPayload } from "@/types/socket"
 import { useAuthStore } from "@/stores/useAuthStore"
 import { useMessageStore } from "@/stores/useMessageStore"
+import { useToast } from "@/components/ui/toast"
 
 export function useSocket() {
   const socketRef = useRef<Socket | null>(null)
   const [connected, setConnected] = useState(false)
   const joinedRoomsRef = useRef<Set<string>>(new Set())
   const longToken = useAuthStore((s) => s.longToken)
+  const { addToast } = useToast()
   const chatApiUrl = import.meta.env.VITE_CHAT_API || `${window.location.origin}/chat-api`
 
   useEffect(() => {
@@ -39,6 +41,7 @@ export function useSocket() {
 
     socket.on("v1:error", (payload: SocketErrorPayload) => {
       console.error("[socket error]", payload.message)
+      addToast(payload.message, "error")
     })
 
     socketRef.current = socket
@@ -48,7 +51,7 @@ export function useSocket() {
       socketRef.current = null
       setConnected(false)
     }
-  }, [longToken, chatApiUrl])
+  }, [longToken, chatApiUrl, addToast])
 
   const joinRoom = useCallback((roomId: string) => {
     joinedRoomsRef.current.add(roomId)

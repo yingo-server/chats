@@ -6,15 +6,14 @@ import { MessageList } from "@/components/chat/MessageList"
 import { MessageInput } from "@/components/chat/MessageInput"
 import { EmptyState } from "@/components/shared/EmptyState"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Button } from "@/components/ui/button"
 import { useAuthStore } from "@/stores/useAuthStore"
-import { useToast } from "@/components/ui/toast"
 
 export default function ChatPage() {
   const { roomId } = useParams<{ roomId: string }>()
-  const { currentRoomId, setCurrentRoom, rooms, loading } = useRoomStore()
+  const { currentRoomId, setCurrentRoom, rooms, loading, fetchError } = useRoomStore()
   const { joinRoom, leaveRoom, connected } = useSocket()
   const user = useAuthStore((s) => s.user)
-  const { addToast } = useToast()
   const [reconnecting, setReconnecting] = useState(false)
 
   useEffect(() => {
@@ -50,6 +49,23 @@ export default function ChatPage() {
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
           <Skeleton className="h-12 w-full" />
+        </div>
+      )
+    }
+    if (fetchError) {
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-3 p-4">
+          <p className="text-sm text-destructive">Failed to load conversations</p>
+          <Button variant="outline" size="sm" onClick={() => useRoomStore.getState().fetchRooms()}>
+            Retry
+          </Button>
+        </div>
+      )
+    }
+    if (rooms.length > 0) {
+      return (
+        <div className="flex h-full items-center justify-center p-4">
+          <p className="text-sm text-muted-foreground">Room not found or you don&apos;t have access</p>
         </div>
       )
     }

@@ -6,6 +6,7 @@ interface RoomState {
   rooms: Room[]
   currentRoomId: string | null
   loading: boolean
+  fetchError: boolean
   fetchRooms: () => Promise<void>
   setCurrentRoom: (id: string | null) => void
   createDirect: (targetUserId: string) => Promise<Room>
@@ -17,12 +18,16 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   rooms: [],
   currentRoomId: null,
   loading: false,
+  fetchError: false,
 
   fetchRooms: async () => {
-    set({ loading: true })
+    set({ loading: true, fetchError: false })
     try {
       const res = await chatApi.getRooms()
       if (res.ok) set({ rooms: res.rooms })
+      else set({ fetchError: true })
+    } catch {
+      set({ fetchError: true })
     } finally {
       set({ loading: false })
     }

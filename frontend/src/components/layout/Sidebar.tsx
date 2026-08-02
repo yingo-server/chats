@@ -7,7 +7,6 @@ import { useUIStore } from "@/stores/useUIStore"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { RoomItem } from "@/components/rooms/RoomItem"
 import { CreateRoom } from "@/components/rooms/CreateRoom"
 import { useState } from "react"
@@ -16,7 +15,7 @@ import { cn } from "@/lib/utils"
 export function Sidebar() {
   const navigate = useNavigate()
   const { roomId } = useParams()
-  const { rooms, currentRoomId, fetchRooms, setCurrentRoom } = useRoomStore()
+  const { rooms, currentRoomId, fetchRooms, setCurrentRoom, fetchError } = useRoomStore()
   const user = useAuthStore((s) => s.user)
   const sidebarOpen = useUIStore((s) => s.sidebarOpen)
   const [search, setSearch] = useState("")
@@ -68,21 +67,30 @@ export function Sidebar() {
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="flex flex-col gap-0.5 p-2">
-            {filtered.map((room) => (
-              <RoomItem
-                key={room.id}
-                room={room}
-                active={room.id === (roomId || currentRoomId)}
-                onClick={() => handleSelect(room.id)}
-              />
-            ))}
-            {filtered.length === 0 && (
-              <div className="py-8 text-center text-sm text-muted-foreground">
-                {search ? "No rooms found" : "No conversations yet"}
-              </div>
-            )}
-          </div>
+          {fetchError ? (
+            <div className="flex flex-col items-center gap-2 py-8 text-center text-sm">
+              <p className="text-destructive">Failed to load conversations</p>
+              <Button variant="outline" size="sm" onClick={() => fetchRooms()}>
+                Retry
+              </Button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-0.5 p-2">
+              {filtered.map((room) => (
+                <RoomItem
+                  key={room.id}
+                  room={room}
+                  active={room.id === (roomId || currentRoomId)}
+                  onClick={() => handleSelect(room.id)}
+                />
+              ))}
+              {filtered.length === 0 && (
+                <div className="py-8 text-center text-sm text-muted-foreground">
+                  {search ? "No rooms found" : "No conversations yet"}
+                </div>
+              )}
+            </div>
+          )}
         </ScrollArea>
 
         <CreateRoom open={showCreate} onOpenChange={setShowCreate} />

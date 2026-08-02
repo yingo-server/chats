@@ -1,5 +1,3 @@
-import { useToast } from "@/components/ui/toast"
-
 type Method = "GET" | "POST" | "PUT" | "DELETE"
 
 class ApiClient {
@@ -50,9 +48,12 @@ class ApiClient {
     clearTimeout(timer)
 
     if (res.status === 401) {
-      localStorage.removeItem("yingo_auth")
-      window.dispatchEvent(new CustomEvent("yingo:toast", { detail: { message: "Session expired, please log in again", type: "error" } }))
-      window.location.replace("/login")
+      const path = window.location.pathname
+      if (path !== "/login" && path !== "/register") {
+        localStorage.removeItem("yingo_auth")
+        window.dispatchEvent(new CustomEvent("yingo:toast", { detail: { message: "Session expired, please log in again", type: "error" } }))
+        window.location.replace("/login")
+      }
       throw new Error("unauthorized")
     }
 

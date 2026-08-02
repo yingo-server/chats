@@ -25,9 +25,14 @@ export function CreateRoom({ open, onOpenChange }: CreateRoomProps) {
   const [searching, setSearching] = useState(false)
   const [groupName, setGroupName] = useState("")
   const [groupMembers, setGroupMembers] = useState("")
+  const [groupSearchQuery, setGroupSearchQuery] = useState("")
+  const [groupSearchResults, setGroupSearchResults] = useState<{ id: string; globalName: string }[]>([])
+  const [groupSearching, setGroupSearching] = useState(false)
+  const [groupSelected, setGroupSelected] = useState<{ id: string; globalName: string }[]>([])
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const groupDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
@@ -52,10 +57,47 @@ export function CreateRoom({ open, onOpenChange }: CreateRoomProps) {
     }
   }, [searchQuery, user?.id])
 
+  useEffect(() => {
+    if (groupDebounceRef.current) clearTimeout(groupDebounceRef.current)
+    if (groupSearchQuery.length < 1) {
+      setGroupSearchResults([])
+      setGroupSearching(false)
+      return
+    }
+    setGroupSearching(true)
+    groupDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await searchUsers(groupSearchQuery)
+        setGroupSearchResults(
+          res.ok
+            ? res.users.filter((u) => u.id !== user?.id && !groupSelected.some((s) => s.id === u.id))
+            : []
+        )
+      } catch {
+        setGroupSearchResults([])
+      } finally {
+        setGroupSearching(false)
+      }
+    }, 300)
+    return () => {
+      if (groupDebounceRef.current) clearTimeout(groupDebounceRef.current)
+    }
+  }, [groupSearchQuery, user?.id, groupSelected])
+
   const handleSelectUser = (u: { id: string; globalName: string }) => {
     setSelectedUser(u)
     setSearchQuery(u.globalName)
     setSearchResults([])
+  }
+
+  const handleAddGroupMember = (u: { id: string; globalName: string }) => {
+    setGroupSelected((prev) => [...prev, u])
+    setGroupSearchQuery("")
+    setGroupSearchResults([])
+  }
+
+  const handleRemoveGroupMember = (id: string) => {
+    setGroupSelected((prev) => prev.filter((u) => u.id !== id))
   }
 
   const handleCreateDirect = async () => {
@@ -81,10 +123,13 @@ export function CreateRoom({ open, onOpenChange }: CreateRoomProps) {
   }
 
   const handleCreateGroup = async () => {
-    const memberIds = groupMembers
+    const manualIds = groupMembers
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean)
+    const memberIds = [...groupSelected.map((u) => u.id), ...manualIds].filter(
+      (id, i, arr) => arr.indexOf(id) === i
+    )
     setLoading(true)
     setError("")
     try {
@@ -93,6 +138,7 @@ export function CreateRoom({ open, onOpenChange }: CreateRoomProps) {
       onOpenChange(false)
       setGroupName("")
       setGroupMembers("")
+      setGroupSelected([])
       navigate(`/chat/${room.id}`)
     } catch (err: any) {
       setError(err?.message || "Failed to create room")
@@ -161,7 +207,46 @@ export function CreateRoom({ open, onOpenChange }: CreateRoomProps) {
               <Input placeholder="Enter group name" value={groupName} onChange={(e) => setGroupName(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>Member IDs (comma-separated)</Label>
+              <Label>Add Members</Label>
+              <Input
+                placeholder="Search users..."
+                value={groupSearchQuery}
+                onChange={(e) => setGroupSearchQuery(e.target.value)}
+              />
+              {groupSearching && <span className="text-xs text-muted-foreground">...</span>}
+              {groupSearchResults.length > 0 && (
+                <div className="max-h-40 overflow-y-auto rounded-md border bg-popover">
+                  {groupSearchResults.map((u) => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent"
+                      onClick={() => handleAddGroupMember(u)}
+                    >
+                      <span className="font-medium">{u.globalName}</span>
+                      <span className="text-xs text-muted-foreground">{u.id}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {groupSelected.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {groupSelected.map((u) => (
+                    <button
+                      key={u.id}
+                      type="button"
+                      className="flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-xs"
+                      onClick={() => handleRemoveGroupMember(u.id)}
+                    >
+                      {u.globalName}
+                      <span aria-hidden>×</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>More Member IDs (comma-separated)</Label>
               <Input placeholder="user1, user2, user3" value={groupMembers} onChange={(e) => setGroupMembers(e.target.value)} />
             </div>
             <Button className="w-full" onClick={handleCreateGroup} disabled={loading}>

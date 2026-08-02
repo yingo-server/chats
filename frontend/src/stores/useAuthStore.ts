@@ -71,11 +71,9 @@ export const useAuthStore = create<AuthState>()(
           const res = await getMe()
           if (res.ok) {
             set({ user: res.user })
-          } else {
-            set({ isAuthenticated: false, user: null, longToken: null, shortToken: null })
           }
         } catch {
-          set({ isAuthenticated: false, user: null, longToken: null, shortToken: null })
+          // 401/expired handled globally in ApiClient; transient errors keep the session
         }
       },
     }),

@@ -10,8 +10,8 @@ export function MessageList() {
   const { messages, hasMore, loading, fetchMessages, fetchMore } = useMessageStore()
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const prevMsgCountRef = useRef(0)
   const fetchIdRef = useRef(0)
+  const prevHeadIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (!currentRoomId) return
@@ -25,13 +25,12 @@ export function MessageList() {
   }, [currentRoomId, fetchMessages])
 
   useEffect(() => {
-    const prevCount = prevMsgCountRef.current
-    const newCount = messages.length
-    prevMsgCountRef.current = newCount
-    if (newCount > prevCount) {
+    const headId = messages[0]?.id ?? null
+    if (headId !== null && headId !== prevHeadIdRef.current) {
+      prevHeadIdRef.current = headId
       bottomRef.current?.scrollIntoView({ behavior: "smooth" })
     }
-  }, [messages.length])
+  }, [messages])
 
   const handleLoadMore = useCallback(async () => {
     if (currentRoomId) await fetchMore(currentRoomId)

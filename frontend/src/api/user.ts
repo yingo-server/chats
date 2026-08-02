@@ -4,7 +4,6 @@ import type {
   AdminUsersRes, AdminTokensRes, AdminPermissionReq, AdminPermissionRes,
   AdminDeleteRes, AdminRevokeRes,
 } from "@/types/api"
-import type { User } from "@/types/models"
 
 export async function getMe() {
   return userApi.get<UsersMeRes>("/api/v1/users/me")
@@ -23,7 +22,7 @@ export async function adminGetUsers() {
 }
 
 export async function adminGetUser(id: string) {
-  return userApi.get<{ ok: true; user: User }>(`/api/v1/admin/users/${id}`)
+  return userApi.get<UsersMeRes>(`/api/v1/admin/users/${id}`)
 }
 
 export async function adminDeleteUser(id: string) {

@@ -24,10 +24,12 @@ export default function ProfilePage() {
   const isOwn = id === user?.id || !id
   const [displayUser, setDisplayUser] = useState<ProfileUser | null>(isOwn ? user : null)
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
     if (isOwn || !user) return
     setLoading(true)
+    setLoadError(false)
     userApi.adminGetUser(id!).then((res) => {
       if (res.ok && res.user) {
         setDisplayUser({
@@ -38,8 +40,10 @@ export default function ProfilePage() {
           createdAt: res.user.createdAt,
           lastOnlineAt: res.user.lastOnlineAt,
         })
+      } else {
+        setLoadError(true)
       }
-    }).catch(() => {}).finally(() => setLoading(false))
+    }).catch(() => setLoadError(true)).finally(() => setLoading(false))
   }, [id, isOwn, user])
 
   if (loading) {
@@ -53,7 +57,9 @@ export default function ProfilePage() {
   if (!displayUser) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-muted-foreground">Profile not available</p>
+        <p className="text-muted-foreground">
+          {loadError ? "Failed to load profile" : "Profile not available"}
+        </p>
       </div>
     )
   }
