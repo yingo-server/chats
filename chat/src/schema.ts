@@ -1,4 +1,11 @@
-import { pgTable, varchar, text, bigint, boolean, integer, primaryKey, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, varchar, text, bigint, boolean, integer, primaryKey, uniqueIndex, index, customType } from "drizzle-orm/pg-core";
+
+// bytea is not a built-in column in drizzle-orm 0.33 -> custom type (raw bytes in / Buffer out)
+const bytea = customType<{ data: Buffer; driverData: Uint8Array }>({
+  dataType() { return "bytea"; },
+  toDriver(value: Buffer) { return value; },
+  fromDriver(value: unknown) { return Buffer.from(value as Uint8Array); },
+});
 
 // ═══ Cold chat database cold_chat ═══
 
@@ -33,4 +40,21 @@ export const coldMessages = pgTable("cold_messages", {
   recalled: boolean("recalled").notNull().default(false),
   manuallyDeleted: boolean("manually_deleted").notNull().default(false),
   autoDeleted: boolean("auto_deleted").notNull().default(false),
-});
+  mediaId: varchar("media_id", { length: 16 }),
+  mediaType: varchar("media_type", { length: 8 }),
+}, (t) => ({
+  mediaRoomTypeIdx: index("idx_msg_media_room_type").on(t.roomId, t.mediaType, t.id),
+}));
+
+/** Media blobs (images/audio/video/files). Deduplicated by content sha256. */
+export const media = pgTable("media", {
+  id: varchar("id", { length: 16 }).primaryKey(),
+  mimeType: varchar("mime_type", { length: 64 }).notNull(),
+  data: bytea("data").notNull(),
+  size: integer("size").notNull(),
+  sha256: varchar("sha256", { length: 64 }).notNull(),
+  ownerId: varchar("owner_id", { length: 16 }).notNull(),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+}, (t) => ({
+  sha256Unique: uniqueIndex("idx_media_sha256_unique").on(t.sha256),
+}));

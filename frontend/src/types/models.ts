@@ -58,6 +58,18 @@ export interface Message {
   manuallyDeleted: boolean
   autoDeleted: boolean
   intervalSinceLast: number | null
+  mediaId?: string | null
+  mediaType?: string | null
+}
+
+export interface Media {
+  id: string
+  mimeType: string
+  size: number
+  sha256: string
+  ownerId: string
+  createdAt: number
+  dataUrl?: string
 }
 
 export interface RoomMember {

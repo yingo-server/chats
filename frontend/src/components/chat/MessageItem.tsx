@@ -2,6 +2,7 @@ import type { Message } from "@/types/models"
 import { useAuthStore } from "@/stores/useAuthStore"
 import { timeAgo } from "@/lib/utils"
 import { cn } from "@/lib/utils"
+import { MediaContent } from "./MediaContent"
 
 interface MessageItemProps {
   message: Message
@@ -28,7 +29,14 @@ export function MessageItem({ message }: MessageItemProps) {
             isOwn ? "self-end bg-primary text-primary-foreground" : "bg-muted"
           )}
         >
-          {message.content.trim()}
+          {message.mediaId ? (
+            <div className="flex flex-col gap-1">
+              <MediaContent mediaId={message.mediaId} mediaType={message.mediaType} />
+              {message.content.trim() && <div>{message.content.trim()}</div>}
+            </div>
+          ) : (
+            message.content.trim()
+          )}
         </div>
       </div>
     </div>

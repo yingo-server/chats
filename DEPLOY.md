@@ -170,8 +170,21 @@ CREATE TABLE cold_messages (
   sender_ip varchar(45),
   recalled boolean NOT NULL DEFAULT false,
   manually_deleted boolean NOT NULL DEFAULT false,
-  auto_deleted boolean NOT NULL DEFAULT false
+  auto_deleted boolean NOT NULL DEFAULT false,
+  media_id varchar(16),
+  media_type varchar(8)
 );
+CREATE INDEX idx_msg_media_room_type ON cold_messages (room_id, media_type, id DESC);
+CREATE TABLE media (
+  id varchar(16) PRIMARY KEY,
+  mime_type varchar(64) NOT NULL,
+  data bytea NOT NULL,
+  size integer NOT NULL,
+  sha256 varchar(64) NOT NULL,
+  owner_id varchar(16) NOT NULL,
+  created_at bigint NOT NULL
+);
+CREATE UNIQUE INDEX idx_media_sha256_unique ON media (sha256);
 SQL
 
 # ┌────── 3. Grant privileges to app users (critical! otherwise 42501 permission denied) ──────┐

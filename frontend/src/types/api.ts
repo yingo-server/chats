@@ -1,4 +1,4 @@
-import type { User, Token, Room, Message, Stats, RoomMember } from "./models"
+import type { User, Token, Room, Message, Stats, RoomMember, Media } from "./models"
 
 export interface ApiErr {
   ok: false
@@ -131,8 +131,9 @@ export interface MessagesOkRes {
 export type MessagesRes = MessagesOkRes | ApiErr
 
 export interface SendMessageReq {
-  content: string
+  content?: string
   type?: string
+  mediaId?: string
 }
 
 export interface SendMessageOkRes {
@@ -141,6 +142,33 @@ export interface SendMessageOkRes {
 }
 
 export type SendMessageRes = SendMessageOkRes | ApiErr
+
+export interface UploadMediaReq {
+  dataUrl: string
+}
+
+export interface UploadMediaOkRes {
+  ok: true
+  media: Media
+}
+
+export type UploadMediaRes = UploadMediaOkRes | ApiErr
+
+export interface MediaRes {
+  ok: true
+  media: Media
+}
+
+export interface MediaListRes {
+  ok: true
+  media: Media[]
+  total: number
+}
+
+export interface DeleteMediaRes {
+  ok: true
+  deleted: string
+}
 
 export interface CreateDirectReq {
   targetUserId: string

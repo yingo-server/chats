@@ -82,7 +82,7 @@ export function setupSocketHandlers(io: Server): void {
       io.in(roomId).emit("v1:online", { userId: uid, online: false });
     });
 
-    socket.on("v1:message", async ({ roomId, content, type }, cb) => {
+    socket.on("v1:message", async ({ roomId, content, type, mediaId }, cb) => {
       const current = inflightCount.get(uid) || 0;
       if (current >= MAX_INFLIGHT) {
         if (cb) cb({ ok: false, error: "too many pending messages" });
@@ -92,12 +92,13 @@ export function setupSocketHandlers(io: Server): void {
       try {
         refreshOnline(uid);
         if (!roomId || typeof roomId !== "string") throw new Error("invalid roomId");
-        if (!content || typeof content !== "string") throw new Error("content required");
+        if (typeof content !== "string") throw new Error("content required");
+        if (!content && !mediaId) throw new Error("content or mediaId required");
         // Rate limit: 60 messages / 10 seconds
         const allowed = await checkRateLimit(`ratelimit:msg:${uid}`, 60, 10);
         if (!allowed) throw new Error("rate limit exceeded, slow down");
         const ip = socket.handshake.address;
-        const msg = await sendMessage(roomId, uid, content, type || "text", ip);
+        const msg = await sendMessage(roomId, uid, content, type || "text", ip, false, mediaId || null);
         const safeMsg = sanitizeMessage(msg);
         io.to(roomId).emit("v1:message", safeMsg);
         if (cb) cb({ ok: true, msg: safeMsg });

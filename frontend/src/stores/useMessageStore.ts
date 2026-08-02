@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import type { Message } from "@/types/models"
+import type { MediaType } from "@/lib/media"
 import * as chatApi from "@/api/chat"
 
 interface MessageState {
@@ -8,6 +9,8 @@ interface MessageState {
   cursor: string | null
   loading: boolean
   lastRoomId: string | null
+  mediaType: MediaType | null
+  setMediaType: (t: MediaType | null) => void
   _fetchGen: number
   fetchMessages: (roomId: string, reset?: boolean) => Promise<void>
   fetchMore: (roomId: string) => Promise<void>
@@ -21,13 +24,17 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   cursor: null,
   loading: false,
   lastRoomId: null,
+  mediaType: null,
   _fetchGen: 0,
+
+  setMediaType: (t) => set({ mediaType: t }),
 
   fetchMessages: async (roomId, reset = true) => {
     const gen = get()._fetchGen + 1
+    const mediaType = get().mediaType
     set({ loading: true, lastRoomId: roomId, _fetchGen: gen })
     try {
-      const res = await chatApi.getMessages(roomId, undefined, 30)
+      const res = await chatApi.getMessages(roomId, undefined, 30, mediaType ?? undefined)
       if (get()._fetchGen !== gen) return
       if (res.ok) {
         set((state) => {
@@ -47,12 +54,12 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   },
 
   fetchMore: async (roomId) => {
-    const { cursor, loading, hasMore } = get()
+    const { cursor, loading, hasMore, mediaType } = get()
     if (loading || !hasMore || !cursor) return
     const gen = get()._fetchGen + 1
     set({ loading: true, _fetchGen: gen })
     try {
-      const res = await chatApi.getMessages(roomId, cursor, 30)
+      const res = await chatApi.getMessages(roomId, cursor, 30, mediaType ?? undefined)
       if (get()._fetchGen !== gen) return
       if (res.ok) {
         set((state) => {
@@ -74,6 +81,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   prependMessage: (msg) => {
     set((state) => {
       if (state.lastRoomId !== msg.roomId) return state
+      if (state.mediaType && msg.mediaType !== state.mediaType) return state
       if (state.messages.some((m) => m.id === msg.id)) return state
       return { messages: [msg, ...state.messages] }
     })

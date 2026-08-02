@@ -1,9 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { eq, sql, and } from "drizzle-orm";
-import { sendMessage, getMessages, getMessagesAdmin, createRoom, deleteRoom, removeRoomForUser, getUserRooms, getRoomDetail, getRoomMembers, isRoomMember, createDirectRoom, db } from "./core.js";
+import { sendMessage, getMessages, getMessagesAdmin, createRoom, deleteRoom, removeRoomForUser, getUserRooms, getRoomDetail, getRoomMembers, isRoomMember, createDirectRoom, db, createMedia, getMedia, deleteMedia, listMediaByOwner } from "./core.js";
 import { verifyToken, fetchUser, secureFetch, searchUsers } from "./api.js";
 import { createClient } from "./redis.js";
-import { rooms, roomMembers, coldMessages } from "./schema.js";
+import { rooms, roomMembers, coldMessages, media } from "./schema.js";
+import { mediaToDataUrl, MEDIA_TYPES } from "./utils.js";
 import { randomBytes } from "node:crypto";
 
 const redis = createClient();
@@ -23,6 +24,11 @@ function parseLimit(raw: any): number | null {
   const n = parseInt(String(raw), 10);
   if (Number.isNaN(n) || n < 1 || n > 100) return null;
   return n;
+}
+
+function serializeMedia(m: any, withData = false) {
+  const base = { id: m.id, mimeType: m.mimeType, size: m.size, sha256: m.sha256, ownerId: m.ownerId, createdAt: m.createdAt };
+  return withData ? { ...base, dataUrl: mediaToDataUrl(m) } : base;
 }
 
 async function requireAdmin(req: any) {
@@ -84,11 +90,12 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const u = await verifyToken(t || "");
     if (!u) return reply.status(401).send({ ok: false, error: "unauthorized" });
     const { id } = req.params as any;
-    const { cursor, limit } = req.query as any;
+    const { cursor, limit, mediaType } = req.query as any;
     const safeLimit = parseLimit(limit);
     if (safeLimit === null) return reply.status(400).send({ ok: false, error: "limit must be 1-100" });
+    if (mediaType !== undefined && !MEDIA_TYPES.includes(mediaType)) return reply.status(400).send({ ok: false, error: "mediaType must be one of image/audio/video/file" });
     try {
-      const result = await getMessages(id, u.userId, cursor, safeLimit);
+      const result = await getMessages(id, u.userId, cursor, safeLimit, mediaType);
       return reply.send({ ok: true, ...result });
     } catch (e: any) {
       const code = e.message === "not a room member" ? 403 : 500;
@@ -257,11 +264,12 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
     const { id } = req.params as any;
-    const { cursor, limit } = req.query as any;
+    const { cursor, limit, mediaType } = req.query as any;
     const safeLimit = parseLimit(limit);
     if (safeLimit === null) return reply.status(400).send({ ok: false, error: "limit must be 1-100" });
+    if (mediaType !== undefined && !MEDIA_TYPES.includes(mediaType)) return reply.status(400).send({ ok: false, error: "mediaType must be one of image/audio/video/file" });
     try {
-      const result = await getMessagesAdmin(id, cursor as string, safeLimit);
+      const result = await getMessagesAdmin(id, cursor as string, safeLimit, mediaType);
       return reply.send({ ok: true, ...result });
     } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
   });
@@ -271,14 +279,17 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const admin = await requireAdmin(req);
     if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
     const { id } = req.params as any;
-    const { senderId, content, type } = req.body as any;
+    const { senderId, content, type, mediaId } = req.body as any;
     if (!senderId || typeof senderId !== "string") return reply.status(400).send({ ok: false, error: "senderId required" });
-    if (!content || typeof content !== "string") return reply.status(400).send({ ok: false, error: "content required" });
+    if (!content && !mediaId) return reply.status(400).send({ ok: false, error: "content or mediaId required" });
     try {
-      const msg = await sendMessage(id, senderId, content, type || "text", req.ip, true);
+      const msg = await sendMessage(id, senderId, content || "", type || "text", req.ip, true, mediaId || null);
       broadcast?.(id, msg);
       return reply.status(201).send({ ok: true, message: msg });
-    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+    } catch (e: any) {
+      const code = e.message === "media not found" ? 404 : 500;
+      return reply.status(code).send({ ok: false, error: e.message });
+    }
   });
 
   // ═══ Admin: Create group (specified creator, admin not a member) ═══
@@ -319,20 +330,117 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
   });
 
+  // ═══ Upload media (data URL -> binary, deduplicated by sha256) ═══
+  app.post("/api/v1/media", async (req, reply) => {
+    const t = req.headers.authorization?.slice(7);
+    const u = await verifyToken(t || "");
+    if (!u) return reply.status(401).send({ ok: false, error: "unauthorized" });
+    const { dataUrl } = req.body as any;
+    if (!dataUrl || typeof dataUrl !== "string") return reply.status(400).send({ ok: false, error: "dataUrl required" });
+    try {
+      const m = await createMedia(u.userId, dataUrl);
+      return reply.status(201).send({ ok: true, media: serializeMedia(m, true) });
+    } catch (e: any) {
+      return reply.status(400).send({ ok: false, error: e.message });
+    }
+  });
+
+  // ═══ List own media (metadata only, newest first) ═══
+  app.get("/api/v1/media", async (req, reply) => {
+    const t = req.headers.authorization?.slice(7);
+    const u = await verifyToken(t || "");
+    if (!u) return reply.status(401).send({ ok: false, error: "unauthorized" });
+    const { cursor, limit } = req.query as any;
+    const safeLimit = parseLimit(limit);
+    if (safeLimit === null) return reply.status(400).send({ ok: false, error: "limit must be 1-100" });
+    try {
+      const rows = await listMediaByOwner(u.userId, cursor as string, safeLimit);
+      return reply.send({ ok: true, media: rows.map(m => serializeMedia(m)), total: rows.length });
+    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+  });
+
+  // ═══ Get media: JSON (with dataUrl) or raw bytes (?raw=1) ═══
+  app.get("/api/v1/media/:id", async (req, reply) => {
+    const t = req.headers.authorization?.slice(7);
+    const u = await verifyToken(t || "");
+    if (!u) return reply.status(401).send({ ok: false, error: "unauthorized" });
+    const { id } = req.params as any;
+    const { raw } = req.query as any;
+    try {
+      const m = await getMedia(id);
+      if (!m) return reply.status(404).send({ ok: false, error: "media not found" });
+      if (raw === "1" || raw === "true") return reply.type(m.mimeType).send(m.data);
+      return reply.send({ ok: true, media: serializeMedia(m, true) });
+    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+  });
+
+  // ═══ Delete media (owner or admin; 409 while referenced by messages) ═══
+  app.delete("/api/v1/media/:id", async (req, reply) => {
+    const t = req.headers.authorization?.slice(7);
+    const u = await verifyToken(t || "");
+    if (!u) return reply.status(401).send({ ok: false, error: "unauthorized" });
+    const admin = await requireAdmin(req);
+    const { id } = req.params as any;
+    if (typeof id !== "string" || id.length > 16) return reply.status(400).send({ ok: false, error: "invalid id" });
+    try {
+      const m = await getMedia(id);
+      if (!m) return reply.status(404).send({ ok: false, error: "media not found" });
+      if (!admin && m.ownerId !== u.userId) return reply.status(403).send({ ok: false, error: "not the owner" });
+      await deleteMedia(id, !!admin);
+      return reply.send({ ok: true, deleted: id });
+    } catch (e: any) {
+      const code = e.message === "media is referenced by messages" ? 409 : 500;
+      return reply.status(code).send({ ok: false, error: e.message });
+    }
+  });
+
+  // ═══ Admin: List all media (optional ownerId filter) ═══
+  app.get("/api/v1/admin/media", async (req, reply) => {
+    const admin = await requireAdmin(req);
+    if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
+    const { cursor, limit, ownerId } = req.query as any;
+    const safeLimit = parseLimit(limit);
+    if (safeLimit === null) return reply.status(400).send({ ok: false, error: "limit must be 1-100" });
+    try {
+      const conditions: any[] = [sql`1 = 1`];
+      if (ownerId && typeof ownerId === "string") conditions.push(eq(media.ownerId, ownerId));
+      if (cursor && typeof cursor === "string") conditions.push(sql`${media.id} < ${cursor}`);
+      const rows = await db.select().from(media).where(and(...conditions)).orderBy(sql`${media.id} DESC`).limit(safeLimit);
+      return reply.send({ ok: true, media: rows.map(m => serializeMedia(m)), total: rows.length });
+    } catch (e: any) { return reply.status(500).send({ ok: false, error: e.message }); }
+  });
+
+  // ═══ Admin: Force-delete media (ignores message references) ═══
+  app.delete("/api/v1/admin/media/:id", async (req, reply) => {
+    const admin = await requireAdmin(req);
+    if (!admin) return reply.status(403).send({ ok: false, error: "admin access required" });
+    const { id } = req.params as any;
+    if (typeof id !== "string" || id.length > 16) return reply.status(400).send({ ok: false, error: "invalid id" });
+    try {
+      await deleteMedia(id, true);
+      return reply.send({ ok: true, deleted: id });
+    } catch (e: any) {
+      const code = e.message === "media not found" ? 404 : 500;
+      return reply.status(code).send({ ok: false, error: e.message });
+    }
+  });
+
   // ═══ User sends message ═══
   app.post("/api/v1/rooms/:id/messages", async (req, reply) => {
     const t = req.headers.authorization?.slice(7);
     const u = await verifyToken(t || "");
     if (!u) return reply.status(401).send({ ok: false, error: "unauthorized" });
     const { id } = req.params as any;
-    const { content, type } = req.body as any;
-    if (!content || typeof content !== "string") return reply.status(400).send({ ok: false, error: "content required" });
+    const { content, type, mediaId } = req.body as any;
+    if (!content && !mediaId) return reply.status(400).send({ ok: false, error: "content or mediaId required" });
+    if (content !== undefined && typeof content !== "string") return reply.status(400).send({ ok: false, error: "content must be a string" });
+    if (mediaId !== undefined && (typeof mediaId !== "string" || mediaId.length < 1 || mediaId.length > 16)) return reply.status(400).send({ ok: false, error: "invalid mediaId" });
     try {
-      const msg = await sendMessage(id, u.userId, content, type || "text", req.ip);
+      const msg = await sendMessage(id, u.userId, content || "", type || "text", req.ip, false, mediaId || null);
       broadcast?.(id, msg);
       return reply.status(201).send({ ok: true, message: msg });
     } catch (e: any) {
-      const code = e.message === "not a room member" ? 403 : e.message.includes("must be") ? 400 : 500;
+      const code = e.message === "not a room member" ? 403 : e.message === "media not found" ? 404 : e.message.includes("must be") || e.message.includes("required") ? 400 : 500;
       return reply.status(code).send({ ok: false, error: e.message });
     }
   });

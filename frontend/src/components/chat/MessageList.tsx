@@ -4,10 +4,20 @@ import { useRoomStore } from "@/stores/useRoomStore"
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll"
 import { MessageItem } from "./MessageItem"
 import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils"
+import type { MediaType } from "@/lib/media"
+
+const FILTERS: { key: MediaType | null; label: string }[] = [
+  { key: null, label: "All" },
+  { key: "image", label: "Images" },
+  { key: "audio", label: "Audio" },
+  { key: "video", label: "Video" },
+  { key: "file", label: "Files" },
+]
 
 export function MessageList() {
   const currentRoomId = useRoomStore((s) => s.currentRoomId)
-  const { messages, hasMore, loading, fetchMessages, fetchMore } = useMessageStore()
+  const { messages, hasMore, loading, fetchMessages, fetchMore, mediaType, setMediaType } = useMessageStore()
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const fetchIdRef = useRef(0)
@@ -33,7 +43,7 @@ export function MessageList() {
         useRoomStore.getState().clearUnread(currentRoomId)
       }
     })
-  }, [currentRoomId, fetchMessages])
+  }, [currentRoomId, fetchMessages, mediaType])
 
   useEffect(() => {
     const headId = messages[0]?.id ?? null
@@ -77,17 +87,38 @@ export function MessageList() {
   }
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto">
-      {hasMore && <div ref={setObserver} className="h-1" />}
-      <div className="flex flex-col">
-        {messages
-          .slice()
-          .reverse()
-          .map((msg) => (
-            <MessageItem key={msg.id} message={msg} />
-          ))}
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex items-center gap-1 border-b px-4 py-1.5">
+        {FILTERS.map((f) => (
+          <button
+            key={f.key ?? "all"}
+            onClick={() => setMediaType(f.key)}
+            className={cn(
+              "rounded-full px-2.5 py-0.5 text-xs transition-colors",
+              mediaType === f.key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
-      <div ref={bottomRef} />
+      <div ref={containerRef} className="flex-1 overflow-y-auto">
+        {hasMore && <div ref={setObserver} className="h-1" />}
+        <div className="flex flex-col">
+          {messages
+            .slice()
+            .reverse()
+            .map((msg) => (
+              <MessageItem key={msg.id} message={msg} />
+            ))}
+          {messages.length === 0 && !loading && (
+            <div className="py-10 text-center text-xs text-muted-foreground">
+              {mediaType ? `No ${mediaType} messages yet` : "No messages yet"}
+            </div>
+          )}
+        </div>
+        <div ref={bottomRef} />
+      </div>
     </div>
   )
 }

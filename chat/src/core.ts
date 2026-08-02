@@ -2,10 +2,10 @@ import { eq, and, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { createClient } from "./redis.js";
-import { coldMessages, rooms, roomMembers } from "./schema.js";
+import { coldMessages, rooms, roomMembers, media } from "./schema.js";
 import { fetchUser } from "./api.js";
-import { sanitizeMessage } from "./utils.js";
-import { randomBytes } from "node:crypto";
+import { sanitizeMessage, parseDataUrl, classifyMedia, mediaToDataUrl } from "./utils.js";
+import { randomBytes, createHash } from "node:crypto";
 import pino from "pino";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info", name: "chat-service" });
@@ -94,11 +94,65 @@ export async function getRoomMembers(roomId: string): Promise<string[]> {
   return members.map(m => m.userId);
 }
 
+// ═══ Media upload / lookup ═══
+// Media rows are deduplicated by content sha256: uploading the same bytes returns the existing row (idempotent).
+export async function createMedia(ownerId: string, dataUrl: string) {
+  const { mimeType, data } = parseDataUrl(dataUrl);
+  const sha256 = createHash("sha256").update(data).digest("hex");
+  const [existing] = await db.select().from(media).where(eq(media.sha256, sha256)).limit(1);
+  if (existing) return existing;
+  const row = { id: genId(), mimeType, data, size: data.length, sha256, ownerId, createdAt: Date.now() };
+  try {
+    await db.insert(media).values(row);
+  } catch (e: any) {
+    const [dup] = await db.select().from(media).where(eq(media.sha256, sha256)).limit(1);
+    if (dup) return dup;
+    throw e;
+  }
+  return row;
+}
+
+export async function getMedia(id: string) {
+  const [row] = await db.select().from(media).where(eq(media.id, id)).limit(1);
+  return row ?? null;
+}
+
+export async function listMediaByOwner(ownerId: string, cursor?: string, limit = 30) {
+  const safeLimit = Math.max(1, Math.min(limit, 100));
+  const conditions = [eq(media.ownerId, ownerId)];
+  if (cursor) conditions.push(sql`${media.id} < ${cursor}`);
+  return await db.select().from(media).where(and(...conditions)).orderBy(sql`${media.id} DESC`).limit(safeLimit);
+}
+
+export async function isMediaReferenced(mediaId: string): Promise<boolean> {
+  const [ref] = await db.select({ id: coldMessages.id }).from(coldMessages).where(eq(coldMessages.mediaId, mediaId)).limit(1);
+  return !!ref;
+}
+
+export async function deleteMedia(id: string, force = false) {
+  const row = await getMedia(id);
+  if (!row) throw new Error("media not found");
+  if (!force) {
+    const ref = await isMediaReferenced(id);
+    if (ref) throw new Error("media is referenced by messages");
+  }
+  await db.delete(media).where(eq(media.id, id));
+  return row;
+}
+
 // ═══ Send message -> write to hot zone (Redis) ═══
-export async function sendMessage(roomId: string, senderId: string, content: string, type: string, ip: string, bypassMembership = false) {
-  if (!content || content.length > 10000) throw new Error("content must be 1-10000 characters");
+export async function sendMessage(roomId: string, senderId: string, content: string, type: string, ip: string, bypassMembership = false, mediaId?: string | null) {
+  const hasContent = typeof content === "string" && content.length > 0;
+  if (!hasContent && !mediaId) throw new Error("content or mediaId required");
+  if (hasContent && content.length > 10000) throw new Error("content must be 1-10000 characters");
   const ALLOWED_TYPES = ["text"];
   if (!type || typeof type !== "string" || !ALLOWED_TYPES.includes(type)) throw new Error("type must be 'text'");
+  let mediaType: string | null = null;
+  if (mediaId) {
+    const m = await getMedia(mediaId);
+    if (!m) throw new Error("media not found");
+    mediaType = classifyMedia(m.mimeType);
+  }
   if (!bypassMembership) {
     const member = await isRoomMember(roomId, senderId);
     if (!member) throw new Error("not a room member");
@@ -112,7 +166,9 @@ export async function sendMessage(roomId: string, senderId: string, content: str
     roomId, senderId,
     senderName: user?.global_name || "unknown",
     senderAppName: user?.app_names?.["chat"] || user?.global_name || "unknown",
-    content, type, sentAt: now, senderIp: ip,
+    content: hasContent ? content : "",
+    type, sentAt: now, senderIp: ip,
+    mediaId: mediaId || null, mediaType,
     recalled: false, manuallyDeleted: false, autoDeleted: false,
     intervalSinceLast: null,
   };
@@ -139,6 +195,7 @@ export async function sendMessage(roomId: string, senderId: string, content: str
         content: msg.content, type: msg.type, sentAt: msg.sentAt,
         senderIp: msg.senderIp, recalled: false,
         manuallyDeleted: false, autoDeleted: false,
+        mediaId: msg.mediaId, mediaType: msg.mediaType,
       });
       savedDirect = true;
     } catch (e: any) {
@@ -184,6 +241,7 @@ async function archiveMessage(msg: any) {
       content: cold.content, type: cold.type, sentAt: cold.sentAt,
       senderIp: cold.senderIp, recalled: cold.recalled,
       manuallyDeleted: cold.manuallyDeleted, autoDeleted: cold.autoDeleted,
+      mediaId: cold.mediaId ?? null, mediaType: cold.mediaType ?? null,
     }).onConflictDoNothing();
     await redis.del(`hot:msg:${msg.id}`);
     await redis.lrem(`hot:room:${cold.roomId}`, 1, msg.id);
@@ -193,7 +251,7 @@ async function archiveMessage(msg: any) {
 }
 
 // ═══ Get messages (hot + cold hybrid) ═══
-export async function getMessages(roomId: string, userId: string, cursor?: string, limit = 30) {
+export async function getMessages(roomId: string, userId: string, cursor?: string, limit = 30, mediaType?: string) {
   const member = await isRoomMember(roomId, userId);
   if (!member) throw new Error("not a room member");
   const safeLimit = Math.max(1, Math.min(limit, 100));
@@ -219,13 +277,15 @@ export async function getMessages(roomId: string, userId: string, cursor?: strin
     log.warn({ roomId, err: e.message }, "Failed to fetch hot messages");
   }
 
-  const hotCursorFiltered = cursor ? hotMsgs.filter(m => m.id < cursor) : hotMsgs;
+  let hotCursorFiltered = cursor ? hotMsgs.filter(m => m.id < cursor) : hotMsgs;
+  if (mediaType) hotCursorFiltered = hotCursorFiltered.filter(m => m.mediaType === mediaType);
 
   // Fetch from the cold zone (cursor paging) - count = remaining quota
   const hotUsed = Math.min(hotCursorFiltered.length, safeLimit);
   const coldLimit = safeLimit - hotUsed;
   const conditions = [eq(coldMessages.roomId, roomId)];
   if (cursor) conditions.push(sql`${coldMessages.id} < ${cursor}`);
+  if (mediaType) conditions.push(eq(coldMessages.mediaType, mediaType));
   let coldMsgs: any[] = [];
   if (coldLimit > 0) {
     coldMsgs = await db.select().from(coldMessages)
@@ -358,7 +418,7 @@ export function startArchiver(): ReturnType<typeof setInterval> {
 }
 
 // ═══ Admin: Get messages (bypasses membership check + hot/cold merge) ═══
-export async function getMessagesAdmin(roomId: string, cursor?: string, limit = 30) {
+export async function getMessagesAdmin(roomId: string, cursor?: string, limit = 30, mediaType?: string) {
   const safeLimit = Math.max(1, Math.min(limit, 100));
 
   let hotMsgs: any[] = [];
@@ -379,12 +439,14 @@ export async function getMessagesAdmin(roomId: string, cursor?: string, limit = 
     log.warn({ roomId, err: e.message }, "Admin: failed to fetch hot messages");
   }
 
-  const hotCursorFiltered = cursor ? hotMsgs.filter(m => m.id < cursor) : hotMsgs;
+  let hotCursorFiltered = cursor ? hotMsgs.filter(m => m.id < cursor) : hotMsgs;
+  if (mediaType) hotCursorFiltered = hotCursorFiltered.filter(m => m.mediaType === mediaType);
 
   const hotUsed = Math.min(hotCursorFiltered.length, safeLimit);
   const coldLimit = safeLimit - hotUsed;
   const conditions = [eq(coldMessages.roomId, roomId)];
   if (cursor) conditions.push(sql`${coldMessages.id} < ${cursor}`);
+  if (mediaType) conditions.push(eq(coldMessages.mediaType, mediaType));
   let coldMsgs: any[] = [];
   if (coldLimit > 0) {
     coldMsgs = await db.select().from(coldMessages)

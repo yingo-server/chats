@@ -5,7 +5,9 @@ import type {
   AdminStatsRes, AdminSendMessageReq, AdminCreateDirectReq,
   AdminCreateGroupReq, AdminAddMemberReq, RoomMembersDetailRes,
   AdminDeleteRes, AdminAddMemberRes, AdminRemoveMemberRes, DeleteRoomRes,
+  UploadMediaReq, UploadMediaRes, MediaRes, MediaListRes, DeleteMediaRes,
 } from "@/types/api"
+import type { MediaType } from "@/lib/media"
 
 export async function getRooms() {
   return chatApi.get<RoomsRes>("/api/v1/rooms")
@@ -19,14 +21,33 @@ export async function getRoomMembers(id: string) {
   return chatApi.get<RoomMembersRes>(`/api/v1/rooms/${id}/members`)
 }
 
-export async function getMessages(roomId: string, cursor?: string, limit = 30) {
+export async function getMessages(roomId: string, cursor?: string, limit = 30, mediaType?: MediaType) {
   const params = new URLSearchParams({ limit: String(limit) })
   if (cursor) params.set("cursor", cursor)
+  if (mediaType) params.set("mediaType", mediaType)
   return chatApi.get<MessagesRes>(`/api/v1/rooms/${roomId}/messages?${params}`)
 }
 
 export async function sendMessage(roomId: string, data: SendMessageReq) {
   return chatApi.post<SendMessageRes>(`/api/v1/rooms/${roomId}/messages`, data)
+}
+
+export async function uploadMedia(data: UploadMediaReq) {
+  return chatApi.post<UploadMediaRes>("/api/v1/media", data)
+}
+
+export async function getMedia(id: string) {
+  return chatApi.get<MediaRes>(`/api/v1/media/${id}`)
+}
+
+export async function listMyMedia(cursor?: string, limit = 30) {
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (cursor) params.set("cursor", cursor)
+  return chatApi.get<MediaListRes>(`/api/v1/media?${params}`)
+}
+
+export async function deleteMedia(id: string) {
+  return chatApi.delete<DeleteMediaRes>(`/api/v1/media/${id}`)
 }
 
 export async function createDirectRoom(data: CreateDirectReq) {

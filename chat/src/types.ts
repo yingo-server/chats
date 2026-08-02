@@ -7,6 +7,8 @@ export interface ChatMessage {
   senderAppName: string;
   content: string;
   type: string;
+  mediaId?: string | null;
+  mediaType?: string | null;
   sentAt: number;
   senderIp: string;
   recalled: boolean;
