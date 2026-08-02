@@ -75,7 +75,7 @@ export function RoomDialogs({ deleteTarget, noteTarget, infoTarget, onClose }: R
 
   return (
     <>
-      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && onClose()}>
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => { setError(""); if (!o) onClose() }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Delete Conversation</DialogTitle>
@@ -97,7 +97,7 @@ export function RoomDialogs({ deleteTarget, noteTarget, infoTarget, onClose }: R
         </DialogContent>
       </Dialog>
 
-      <Dialog key={noteTarget?.id ?? "note-none"} open={!!noteTarget} onOpenChange={(o) => !o && onClose()}>
+      <Dialog key={noteTarget?.id ?? "note-none"} open={!!noteTarget} onOpenChange={(o) => { setError(""); if (!o) onClose() }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Rename Note</DialogTitle>
@@ -127,7 +127,7 @@ export function RoomDialogs({ deleteTarget, noteTarget, infoTarget, onClose }: R
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!infoTarget} onOpenChange={(o) => !o && onClose()}>
+      <Dialog open={!!infoTarget} onOpenChange={(o) => { setError(""); if (!o) onClose() }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Room Properties</DialogTitle>
@@ -146,7 +146,7 @@ export function RoomDialogs({ deleteTarget, noteTarget, infoTarget, onClose }: R
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground">Members</span>
-                <span>{infoTarget.memberIds.length}</span>
+                <span>{(infoTarget.memberIds ?? []).length}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span className="text-muted-foreground">Created</span>

@@ -37,7 +37,7 @@ export function MessageInput() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault()
       handleSend()
     }
@@ -56,7 +56,7 @@ export function MessageInput() {
         className="flex-1 resize-none min-h-[40px] max-h-[120px]"
         rows={1}
       />
-      <Button size="icon" onClick={handleSend} disabled={!text.trim()} className="mb-1">
+      <Button size="icon" onClick={handleSend} disabled={!text.trim()} className="mb-1" aria-label="Send message">
         <Send className="h-4 w-4" />
       </Button>
     </div>

@@ -39,7 +39,7 @@ export function Sidebar() {
 
   const filtered = search
     ? rooms.filter((r) => {
-        const name = r.type === "group" && r.name ? r.name : r.memberIds.filter((id) => id !== user?.id).join(", ")
+        const name = r.type === "group" && r.name ? r.name : (r.memberIds ?? []).map((id) => id === user?.id ? null : r.memberNames?.[id] || id).filter(Boolean).join(", ")
         return name.toLowerCase().includes(search.toLowerCase())
       })
     : rooms
@@ -79,7 +79,7 @@ export function Sidebar() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowCreate(true)}>
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowCreate(true)} aria-label="New conversation">
             <MessageSquarePlus className="h-4 w-4" />
           </Button>
         </div>

@@ -3,8 +3,8 @@ import { createRoot } from "react-dom/client"
 import App from "./App"
 import "./index.css"
 
-window.addEventListener("contextmenu", (e) => e.preventDefault())
-window.addEventListener("selectstart", (e) => e.preventDefault())
+// Room item handles its own context menu (long-press / right-click). Global
+// interception previously blocked selecting/copying message text.
 window.addEventListener("dragstart", (e) => e.preventDefault())
 window.addEventListener("auxclick", (e) => e.preventDefault())
 window.addEventListener("mousedown", (e) => {

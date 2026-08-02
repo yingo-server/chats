@@ -13,13 +13,23 @@ export function MessageList() {
   const fetchIdRef = useRef(0)
   const prevHeadIdRef = useRef<string | null>(null)
 
+  const scrollToBottom = () => {
+    const el = containerRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }
+
+  const isNearBottom = () => {
+    const el = containerRef.current
+    return el ? el.scrollHeight - el.scrollTop - el.clientHeight < 160 : false
+  }
+
   useEffect(() => {
     if (!currentRoomId) return
     const fetchId = ++fetchIdRef.current
     useMessageStore.getState().reset()
     fetchMessages(currentRoomId).then(() => {
       if (fetchId === fetchIdRef.current) {
-        bottomRef.current?.scrollIntoView()
+        scrollToBottom()
       }
     })
   }, [currentRoomId, fetchMessages])
@@ -28,12 +38,21 @@ export function MessageList() {
     const headId = messages[0]?.id ?? null
     if (headId !== null && headId !== prevHeadIdRef.current) {
       prevHeadIdRef.current = headId
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" })
+      // Only auto-scroll when the user is already near the bottom; reading history stays put
+      if (isNearBottom()) scrollToBottom()
     }
   }, [messages])
 
   const handleLoadMore = useCallback(async () => {
+    const el = containerRef.current
+    const prevHeight = el ? el.scrollHeight : 0
+    const prevScrollTop = el ? el.scrollTop : 0
     if (currentRoomId) await fetchMore(currentRoomId)
+    if (el && prevHeight > 0) {
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight - prevHeight + prevScrollTop
+      })
+    }
   }, [currentRoomId, fetchMore])
 
   const { setObserver } = useInfiniteScroll(handleLoadMore, hasMore)

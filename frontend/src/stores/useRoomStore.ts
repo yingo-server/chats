@@ -35,7 +35,7 @@ export const useRoomStore = create<RoomState>((set, get) => ({
             noteMap = Object.fromEntries(notesRes.notes.map((n) => [n.roomId, n.note]))
           }
         } catch {}
-        set({ rooms: res.rooms.map((r) => ({ ...r, note: noteMap[r.id] || undefined })) })
+        set({ rooms: res.rooms.map((r) => ({ ...r, note: noteMap[r.id] ?? r.note })) })
       } else set({ fetchError: true })
     } catch {
       set({ fetchError: true })
@@ -61,12 +61,17 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   },
 
   upsertRoom: (room) => {
+    const safeRoom = {
+      ...room,
+      memberIds: room.memberIds ?? [],
+      memberNames: room.memberNames ?? {},
+    }
     set((state) => {
-      const exists = state.rooms.find((r) => r.id === room.id)
+      const exists = state.rooms.find((r) => r.id === safeRoom.id)
       if (exists) {
-        return { rooms: state.rooms.map((r) => (r.id === room.id ? room : r)) }
+        return { rooms: state.rooms.map((r) => (r.id === safeRoom.id ? safeRoom : r)) }
       }
-      return { rooms: [room, ...state.rooms] }
+      return { rooms: [safeRoom, ...state.rooms] }
     })
   },
 

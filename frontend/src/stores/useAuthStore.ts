@@ -67,9 +67,12 @@ export const useAuthStore = create<AuthState>()(
       },
 
       fetchMe: async () => {
+        const token = get().longToken
+        if (!token) return
         try {
           const res = await getMe()
-          if (res.ok) {
+          // Ignore stale responses arriving after logout / re-login
+          if (res.ok && get().longToken === token) {
             set({ user: res.user })
           }
         } catch {

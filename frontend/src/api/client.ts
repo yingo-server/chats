@@ -50,9 +50,14 @@ class ApiClient {
     if (res.status === 401) {
       const path = window.location.pathname
       if (path !== "/login" && path !== "/register") {
-        localStorage.removeItem("yingo_auth")
-        window.dispatchEvent(new CustomEvent("yingo:toast", { detail: { message: "Session expired, please log in again", type: "error" } }))
-        window.location.replace("/login")
+        // Only clear the session if the token that just failed is still the active one.
+        // A stale in-flight request must not wipe a freshly logged-in session.
+        if (this.getToken() === token) {
+          localStorage.removeItem("yingo_auth")
+          window.dispatchEvent(new CustomEvent("yingo:logout"))
+          window.dispatchEvent(new CustomEvent("yingo:toast", { detail: { message: "Session expired, please log in again", type: "error" } }))
+          window.location.replace("/login")
+        }
       }
       throw new Error("unauthorized")
     }

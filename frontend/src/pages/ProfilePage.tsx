@@ -27,7 +27,12 @@ export default function ProfilePage() {
   const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
-    if (isOwn || !user) return
+    if (isOwn) {
+      setDisplayUser(user as ProfileUser | null)
+      setLoadError(false)
+      return
+    }
+    if (!user) return
     setLoading(true)
     setLoadError(false)
     userApi.getUser(id!).then((res) => {

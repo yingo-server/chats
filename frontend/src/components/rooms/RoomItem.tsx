@@ -16,8 +16,10 @@ export function RoomItem({ room, active, onClick, onOpenMenu }: RoomItemProps) {
   const user = useAuthStore((s) => s.user)
   const onlineMap = useOnlineStatus()
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const suppressClickRef = useRef(false)
 
-  const otherUserId = room.type === "direct" ? room.memberIds.find((id) => id !== user?.id) : null
+  const memberIds = room.memberIds ?? []
+  const otherUserId = room.type === "direct" ? memberIds.find((id) => id !== user?.id) : null
   const otherName = otherUserId ? room.memberNames?.[otherUserId] : null
 
   const baseName =
@@ -26,7 +28,7 @@ export function RoomItem({ room, active, onClick, onOpenMenu }: RoomItemProps) {
       : room.type === "direct" && otherName
         ? otherName
         : room.type === "direct"
-          ? room.memberIds.filter((id) => id !== user?.id).join(", ")
+          ? memberIds.filter((id) => id !== user?.id).join(", ")
           : room.id
 
   const displayName = room.note || baseName
@@ -43,12 +45,23 @@ export function RoomItem({ room, active, onClick, onOpenMenu }: RoomItemProps) {
 
   const startLongPress = (x: number, y: number) => {
     cancelLongPress()
-    longPressTimer.current = setTimeout(() => onOpenMenu(room, x, y), 700)
+    longPressTimer.current = setTimeout(() => {
+      suppressClickRef.current = true
+      onOpenMenu(room, x, y)
+    }, 700)
+  }
+
+  const handleClick = () => {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false
+      return
+    }
+    onClick()
   }
 
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
       onContextMenu={(e) => {
         e.preventDefault()
         cancelLongPress()
@@ -62,7 +75,7 @@ export function RoomItem({ room, active, onClick, onOpenMenu }: RoomItemProps) {
       onTouchEnd={cancelLongPress}
       onTouchCancel={cancelLongPress}
       className={cn(
-        "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-accent",
+        "flex w-full select-none items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-accent",
         active && "bg-accent"
       )}
     >
@@ -83,7 +96,7 @@ export function RoomItem({ room, active, onClick, onOpenMenu }: RoomItemProps) {
         </div>
         <div className="truncate text-xs text-muted-foreground">
           {showOriginal && <span className="mr-1 inline">original: {baseName}</span>}
-          {room.type === "group" ? `${room.memberIds.length} members` : isOnline ? "Online" : "Offline"}
+          {room.type === "group" ? `${memberIds.length} members` : isOnline ? "Online" : "Offline"}
         </div>
       </div>
       <div className="text-[10px] text-muted-foreground">{timeAgo(room.createdAt)}</div>

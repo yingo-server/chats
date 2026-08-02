@@ -39,12 +39,22 @@ function ToastListener() {
   return null
 }
 
+function LogoutListener() {
+  useEffect(() => {
+    const handler = () => useAuthStore.getState().logout()
+    window.addEventListener("yingo:logout", handler)
+    return () => window.removeEventListener("yingo:logout", handler)
+  }, [])
+  return null
+}
+
 export default function App() {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <TooltipProvider>
         <ToastProvider>
           <ToastListener />
+          <LogoutListener />
           <BrowserRouter>
             <AppInit />
             <ErrorBoundary>

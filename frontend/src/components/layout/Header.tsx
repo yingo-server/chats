@@ -23,7 +23,7 @@ export function Header() {
 
   return (
     <header className="flex h-14 items-center gap-4 border-b bg-background px-4">
-      <Button variant="ghost" size="icon" className="md:hidden" onClick={toggleSidebar}>
+      <Button variant="ghost" size="icon" className="md:hidden" onClick={toggleSidebar} aria-label="Toggle sidebar">
         <Menu className="h-5 w-5" />
       </Button>
 
