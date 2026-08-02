@@ -5,6 +5,7 @@ import type { SocketOnlinePayload, SocketErrorPayload } from "@/types/socket"
 import { useAuthStore } from "@/stores/useAuthStore"
 import { useMessageStore } from "@/stores/useMessageStore"
 import { useRoomStore } from "@/stores/useRoomStore"
+import { playMessageSound } from "@/lib/notify"
 import { useToast } from "@/components/ui/toast"
 
 export function useSocket() {
@@ -33,6 +34,8 @@ export function useSocket() {
     socket.on("disconnect", () => setConnected(false))
 
     socket.on("v1:message", (msg: Message) => {
+      const myId = useAuthStore.getState().userId
+      if (msg.senderId !== myId) playMessageSound()
       const { lastRoomId } = useMessageStore.getState()
       if (lastRoomId === msg.roomId) {
         useMessageStore.getState().prependMessage(msg)

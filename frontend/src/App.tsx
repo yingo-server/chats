@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary"
 import { ToastProvider, useToast } from "@/components/ui/toast"
 import { useAuthStore } from "@/stores/useAuthStore"
+import { useMessageNotify } from "@/hooks/useMessageNotify"
 import LoginPage from "@/pages/LoginPage"
 import RegisterPage from "@/pages/RegisterPage"
 import ChatPage from "@/pages/ChatPage"
@@ -16,6 +17,8 @@ function AppInit() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
   const user = useAuthStore((s) => s.user)
   const fetchMe = useAuthStore((s) => s.fetchMe)
+
+  useMessageNotify()
 
   useEffect(() => {
     if (isAuthenticated && !user) fetchMe()
