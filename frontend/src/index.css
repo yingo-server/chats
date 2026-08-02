@@ -106,9 +106,9 @@
   }
   @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .sidebar-glass {
-      background-color: color-mix(in oklab, var(--muted) 40%, transparent);
-      -webkit-backdrop-filter: blur(24px);
-      backdrop-filter: blur(24px);
+      background-color: color-mix(in oklab, var(--muted) 70%, transparent);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
     }
   }
 
