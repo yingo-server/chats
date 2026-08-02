@@ -12,12 +12,20 @@ interface UIState {
 export const useUIStore = create<UIState>()(
   persist(
     (set) => ({
-      sidebarOpen: true,
+      sidebarOpen: false,
       theme: "system",
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
       setTheme: (theme) => set({ theme }),
     }),
-    { name: "yingo_ui" }
+    {
+      name: "yingo_ui",
+      partialize: (state) => ({ theme: state.theme }),
+      // Ignore any stale persisted sidebar state; mobile sidebar always starts closed
+      merge: (persisted, current) => {
+        const p = persisted as Partial<UIState> | undefined
+        return { ...current, theme: p?.theme ?? current.theme }
+      },
+    }
   )
 )
