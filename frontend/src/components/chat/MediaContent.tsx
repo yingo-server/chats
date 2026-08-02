@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { FileText } from "lucide-react"
+import { FileText, Film } from "lucide-react"
 import * as chatApi from "@/api/chat"
 import type { Media } from "@/types/models"
 import { cn } from "@/lib/utils"
@@ -40,6 +40,30 @@ function formatSize(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`
 }
 
+/** Video shows a generic thumbnail and does not load the payload until the user clicks play. */
+function VideoMedia({ media, compact }: { media: Media; compact: boolean }) {
+  const [playing, setPlaying] = useState(false)
+  if (!playing) {
+    return (
+      <button
+        type="button"
+        onClick={() => setPlaying(true)}
+        className={cn(
+          "flex max-w-full items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-left hover:bg-muted/60",
+          compact ? "w-48" : "w-64",
+        )}
+      >
+        <Film className="h-8 w-8 shrink-0 text-muted-foreground" />
+        <span className="flex min-w-0 flex-col">
+          <span className="truncate text-xs font-medium">Video · {formatSize(media.size)}</span>
+          <span className="text-[10px] text-muted-foreground">Click to play</span>
+        </span>
+      </button>
+    )
+  }
+  return <video controls autoPlay src={media.dataUrl} preload="auto" className={cn("max-w-full rounded-lg", compact ? "max-h-24" : "max-h-80")} />
+}
+
 export function MediaContent({ mediaId, mediaType, compact = false }: { mediaId: string; mediaType?: string | null; compact?: boolean }) {
   const { media, error, loading } = useMedia(mediaId)
 
@@ -78,9 +102,7 @@ export function MediaContent({ mediaId, mediaType, compact = false }: { mediaId:
   }
 
   if (kind === "video") {
-    return (
-      <video controls src={media.dataUrl} preload="metadata" className={cn("max-w-full rounded-lg", compact ? "max-h-24" : "max-h-80")} />
-    )
+    return <VideoMedia media={media} compact={compact} />
   }
 
   return (

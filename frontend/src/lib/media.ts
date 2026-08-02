@@ -1,7 +1,7 @@
 export type MediaType = "image" | "audio" | "video" | "file"
 export const MEDIA_TYPES: MediaType[] = ["image", "audio", "video", "file"]
 
-export const MAX_MEDIA_BYTES = 2 * 1024 * 1024
+export const MAX_MEDIA_BYTES = 30 * 1024 * 1024
 
 export function classifyDataUrl(dataUrl: string): MediaType | null {
   const m = /^data:([a-zA-Z0-9.+-]+\/[a-zA-Z0-9.+-]+);/.exec(dataUrl)

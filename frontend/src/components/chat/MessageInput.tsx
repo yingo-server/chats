@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react"
-import { Send, ImagePlus, Paperclip } from "lucide-react"
+import { Send, Paperclip } from "lucide-react"
 import { useRoomStore } from "@/stores/useRoomStore"
 import { useSocket } from "@/hooks/useSocket"
 import { useToast } from "@/components/ui/toast"
@@ -14,9 +14,13 @@ export function MessageInput() {
   const { addToast } = useToast()
   const [text, setText] = useState("")
   const [sendingMedia, setSendingMedia] = useState(false)
+  const [videoOverlay, setVideoOverlay] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const imageInputRef = useRef<HTMLInputElement>(null)
   const attachInputRef = useRef<HTMLInputElement>(null)
+
+  const clearInput = () => {
+    if (attachInputRef.current) attachInputRef.current.value = ""
+  }
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -50,58 +54,56 @@ export function MessageInput() {
 
   const handleFileSelected = async (file: File | undefined) => {
     if (!file || !currentRoomId || sendingMedia) return
+    const isVideo = file.type.startsWith("video/")
     setSendingMedia(true)
+    if (isVideo) setVideoOverlay(true)
     try {
       const dataUrl = await fileToUploadDataUrl(file)
-      const res = await chatApi.uploadMedia({ dataUrl })
-      if (!res.ok) throw new Error(res.error)
-      await sendMessage(currentRoomId, "", "text", res.media.id)
+      const upload = chatApi.uploadMedia({ dataUrl })
+      if (isVideo) {
+        const [res] = await Promise.all([upload, new Promise((r) => setTimeout(r, 7000))])
+        if (!res.ok) throw new Error(res.error)
+        await sendMessage(currentRoomId, "", "text", res.media.id)
+      } else {
+        const res = await upload
+        if (!res.ok) throw new Error(res.error)
+        await sendMessage(currentRoomId, "", "text", res.media.id)
+      }
     } catch (e: any) {
       addToast(e?.message || "Failed to send attachment", "error")
     } finally {
+      setVideoOverlay(false)
       setSendingMedia(false)
-      if (imageInputRef.current) imageInputRef.current.value = ""
-      if (attachInputRef.current) attachInputRef.current.value = ""
+      clearInput()
     }
   }
 
   if (!currentRoomId) return null
 
   return (
-    <div className="flex items-end gap-2 border-t px-4 py-3">
-      <input
-        ref={imageInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => handleFileSelected(e.target.files?.[0])}
-      />
+    <>
+      {videoOverlay && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-black/85">
+          <div className="h-14 w-14 animate-spin rounded-full border-4 border-white/20 border-t-white" />
+          <p className="text-xl text-white">海内存知己，天涯若比邻</p>
+        </div>
+      )}
+      <div className="flex items-end gap-2 border-t px-4 py-3">
       <input
         ref={attachInputRef}
         type="file"
-        accept="audio/*,video/*,application/*,text/*"
+        accept="image/*,audio/*,video/*,application/*,text/*"
         className="hidden"
         onChange={(e) => handleFileSelected(e.target.files?.[0])}
       />
-      <Button
-        size="icon"
-        variant="ghost"
-        onClick={() => imageInputRef.current?.click()}
-        disabled={sendingMedia}
-        className="mb-1"
-        aria-label="Send image"
-        title="Send image"
-      >
-        <ImagePlus className="h-4 w-4" />
-      </Button>
       <Button
         size="icon"
         variant="ghost"
         onClick={() => attachInputRef.current?.click()}
         disabled={sendingMedia}
         className="mb-1"
-        aria-label="Send file"
-        title="Send file"
+        aria-label="Send attachment"
+        title="Send attachment"
       >
         <Paperclip className="h-4 w-4" />
       </Button>
@@ -117,6 +119,7 @@ export function MessageInput() {
       <Button size="icon" onClick={handleSend} disabled={!text.trim() || sendingMedia} className="mb-1" aria-label="Send message">
         <Send className="h-4 w-4" />
       </Button>
-    </div>
+      </div>
+    </>
   )
 }
