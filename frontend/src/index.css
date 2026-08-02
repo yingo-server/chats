@@ -127,4 +127,13 @@
   @keyframes sidebar-slide-out {
     to { transform: translateX(-100%); }
   }
+  /* Desktop: no slide animations at all (media query here, NOT a Tailwind
+     variant - a later custom rule would otherwise override md:animate-none
+     in the cascade and hide the sidebar permanently) */
+  @media (min-width: 48rem) {
+    .sidebar-in,
+    .sidebar-out {
+      animation: none;
+    }
+  }
 }

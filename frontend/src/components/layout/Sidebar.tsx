@@ -68,7 +68,7 @@ export function Sidebar() {
           "fixed inset-y-0 left-0 z-30 shadow-2xl md:relative md:shadow-none",
           // One-shot animations: transform returns to none after play, so backdrop-filter
           // actually renders (Chromium drops the backdrop on composited/transformed layers)
-          sidebarOpen ? "sidebar-in md:animate-none" : "sidebar-out md:animate-none"
+          sidebarOpen ? "sidebar-in" : "sidebar-out"
         )}
       >
         <div className="flex items-center gap-2 border-b px-4 py-3">
