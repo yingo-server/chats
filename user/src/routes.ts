@@ -3,7 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { eq, sql, and, ne } from "drizzle-orm";
 import { db } from "./db.js";
 import { users, tokens } from "./schema.js";
-import { registerUser, loginUser, verifyToken, createApiKey, getUserById, getUserTokens, deleteUser, revokeToken, updateUserPermission, invalidateTokenCache } from "./core.js";
+import { registerUser, loginUser, verifyToken, createApiKey, getUserById, getUserTokens, deleteUser, revokeToken, updateUserPermission, invalidateTokenCache, setRoomNote, getUserRoomNotes } from "./core.js";
 import { apiKeys } from "./schema.js";
 import pino from "pino";
 
@@ -185,6 +185,37 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     const user = await getUserById(id);
     if (!user) return reply.status(404).send({ ok: false, error: "user not found" });
     return reply.send({ ok: true, user });
+  });
+
+  // ═══ Room notes: set note for a room (only own notes) ═══
+  app.put("/api/v1/me/room-notes/:roomId", async (req, reply) => {
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith("Bearer ")) return reply.status(401).send({ ok: false, error: "missing token" });
+    const payload = await verifyToken(auth.slice(7));
+    if (!payload) return reply.status(401).send({ ok: false, error: "invalid token" });
+    const { roomId } = req.params as any;
+    const { note } = req.body as any;
+    if (typeof note !== "string") return reply.status(400).send({ ok: false, error: "note must be a string" });
+    try {
+      await setRoomNote(payload.userId, roomId, note);
+      return reply.send({ ok: true, roomId, note: note || null });
+    } catch (e: any) {
+      const msg = e?.message || "internal error";
+      const isBusiness = /^(invalid roomId|note must be)/.test(msg);
+      return reply.status(isBusiness ? 400 : 500).send({ ok: false, error: isBusiness ? msg : "failed to save note" });
+    }
+  });
+
+  // ═══ Get own room notes ═══
+  app.get("/api/v1/me/room-notes", async (req, reply) => {
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith("Bearer ")) return reply.status(401).send({ ok: false, error: "missing token" });
+    const payload = await verifyToken(auth.slice(7));
+    if (!payload) return reply.status(401).send({ ok: false, error: "invalid token" });
+    try {
+      const notes = await getUserRoomNotes(payload.userId);
+      return reply.send({ ok: true, notes });
+    } catch (e: any) { log.error({ err: e }, "getRoomNotes failed"); return reply.status(500).send({ ok: false, error: "internal error" }); }
   });
 
   // ═══ Get current user token list ═══

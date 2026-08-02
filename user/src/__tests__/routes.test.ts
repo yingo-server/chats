@@ -30,6 +30,8 @@ vi.mock("../core.js", () => ({
     return { userId: "1234567890000001", scopes: ["user:read", "chat:read", "chat:send"], permission: "admin" };
   }),
   createApiKey: vi.fn().mockResolvedValue({ key: "mk-" + "c".repeat(128), name: "testkey", expiresDays: 30, rateLimit: 100, prefix: "mk-" }),
+  setRoomNote: vi.fn().mockResolvedValue(undefined),
+  getUserRoomNotes: vi.fn().mockResolvedValue([{ roomId: "1234567890000001", note: "Work" }]),
   startTokenCleaner: vi.fn().mockReturnValue(setInterval(() => {}, 86400000)),
   resetAllOnline: vi.fn().mockResolvedValue(undefined),
 }));
@@ -224,6 +226,68 @@ describe("User Service routes", () => {
       url: "/api/v1/api-keys",
       payload: { name: "testkey", scopes: ["chat:read"], expires_days: 30 },
     });
+    expect(res.statusCode).toBe(401);
+  });
+
+  // ═══ Room notes ═══
+  it("PUT /api/v1/me/room-notes/:roomId saves a note", async () => {
+    const res = await app.inject({
+      method: "PUT",
+      url: "/api/v1/me/room-notes/1234567890000001",
+      headers: { authorization: "Bearer " + "a".repeat(32) },
+      payload: { note: "Work" },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body.ok).toBe(true);
+    expect(body.note).toBe("Work");
+  });
+
+  it("PUT /api/v1/me/room-notes/:roomId returns 400 for non-string note", async () => {
+    const res = await app.inject({
+      method: "PUT",
+      url: "/api/v1/me/room-notes/1234567890000001",
+      headers: { authorization: "Bearer " + "a".repeat(32) },
+      payload: { note: 123 },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("PUT /api/v1/me/room-notes/:roomId returns 401 without auth", async () => {
+    const res = await app.inject({
+      method: "PUT",
+      url: "/api/v1/me/room-notes/1234567890000001",
+      payload: { note: "Work" },
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("PUT /api/v1/me/room-notes/:roomId returns 400 when note is too long", async () => {
+    const { setRoomNote } = await import("../core.js");
+    (setRoomNote as any).mockRejectedValueOnce(new Error("note must be 1-64 characters"));
+    const res = await app.inject({
+      method: "PUT",
+      url: "/api/v1/me/room-notes/1234567890000001",
+      headers: { authorization: "Bearer " + "a".repeat(32) },
+      payload: { note: "x".repeat(70) },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("GET /api/v1/me/room-notes returns own notes", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: "/api/v1/me/room-notes",
+      headers: { authorization: "Bearer " + "a".repeat(32) },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body.ok).toBe(true);
+    expect(body.notes[0].note).toBe("Work");
+  });
+
+  it("GET /api/v1/me/room-notes returns 401 without auth", async () => {
+    const res = await app.inject({ method: "GET", url: "/api/v1/me/room-notes" });
     expect(res.statusCode).toBe(401);
   });
 });

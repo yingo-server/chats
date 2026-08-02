@@ -36,6 +36,7 @@ vi.mock("../core.js", () => ({
   getMessages: vi.fn().mockResolvedValue({ items: [], cursor: undefined, hasMore: false }),
   createRoom: vi.fn().mockResolvedValue({ id: "1234567890000001", type: "direct", name: null }),
   createDirectRoom: vi.fn().mockResolvedValue({ id: "1234567890000001", type: "direct", name: null }),
+  removeRoomForUser: vi.fn().mockResolvedValue({ action: "deleted" }),
   startArchiver: vi.fn().mockReturnValue(setInterval(() => {}, 30000)),
   isRoomMember: vi.fn().mockResolvedValue(true),
   db: mockDb,
@@ -180,5 +181,54 @@ describe("Chat Service routes", () => {
       headers: { authorization: "Bearer aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
     });
     expect(res.statusCode).toBe(400);
+  });
+
+  // ═══ Delete / leave room ═══
+  it("DELETE /api/v1/rooms/:id succeeds", async () => {
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/api/v1/rooms/1234567890000001",
+      headers: { authorization: "Bearer aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body.ok).toBe(true);
+    expect(body.action).toBe("deleted");
+  });
+
+  it("DELETE /api/v1/rooms/:id returns 401 without auth", async () => {
+    const res = await app.inject({ method: "DELETE", url: "/api/v1/rooms/1234567890000001" });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it("DELETE /api/v1/rooms/:id returns 400 for an invalid id", async () => {
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/api/v1/rooms/12345678901234567",
+      headers: { authorization: "Bearer aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it("DELETE /api/v1/rooms/:id returns 403 when not a member", async () => {
+    const { removeRoomForUser } = await import("../core.js");
+    (removeRoomForUser as any).mockRejectedValueOnce(new Error("not a room member"));
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/api/v1/rooms/1234567890000001",
+      headers: { authorization: "Bearer aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it("DELETE /api/v1/rooms/:id returns 404 when room is missing", async () => {
+    const { removeRoomForUser } = await import("../core.js");
+    (removeRoomForUser as any).mockRejectedValueOnce(new Error("room not found"));
+    const res = await app.inject({
+      method: "DELETE",
+      url: "/api/v1/rooms/1234567890000001",
+      headers: { authorization: "Bearer aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+    });
+    expect(res.statusCode).toBe(404);
   });
 });

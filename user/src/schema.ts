@@ -1,4 +1,4 @@
-import { pgTable, varchar, text, bigint, boolean, jsonb, integer, index } from "drizzle-orm/pg-core";
+import { pgTable, varchar, text, bigint, boolean, jsonb, integer, index, uniqueIndex } from "drizzle-orm/pg-core";
 
 // ═══ Cold user database cold_user ═══
 
@@ -65,3 +65,15 @@ export const oauthClients = pgTable("oauth_clients", {
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
   status: integer("status").notNull().default(1),
 });
+
+/** Per-user per-room display name note (visible only to its owner) */
+export const roomNotes = pgTable("room_notes", {
+  id: varchar("id", { length: 16 }).primaryKey(),
+  userId: varchar("user_id", { length: 16 }).notNull().references(() => users.id),
+  roomId: varchar("room_id", { length: 16 }).notNull(),
+  note: varchar("note", { length: 64 }).notNull(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+}, (t) => ({
+  userRoomUnique: uniqueIndex("idx_room_notes_user_room_unique").on(t.userId, t.roomId),
+  userIdx: index("idx_room_notes_user_id").on(t.userId),
+}));

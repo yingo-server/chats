@@ -1,7 +1,7 @@
 import { createHmac, createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { eq, and, isNull, sql } from "drizzle-orm";
 import { db } from "./db.js";
-import { users, tokens, apiKeys } from "./schema.js";
+import { users, tokens, apiKeys, roomNotes } from "./schema.js";
 import pino from "pino";
 
 const log = pino({ level: process.env.LOG_LEVEL || "info", name: "user-service" });
@@ -357,4 +357,26 @@ export async function resetAllOnline(): Promise<void> {
   } catch (e) {
     log.error({ err: e }, "Failed to reset online status");
   }
+}
+
+// ═══ Room notes: per-user per-room display name/note, only visible to its owner ═══
+export async function setRoomNote(userId: string, roomId: string, note: string): Promise<void> {
+  if (typeof roomId !== "string" || roomId.length < 1 || roomId.length > 16) throw new Error("invalid roomId");
+  if (note === "") {
+    await db.delete(roomNotes).where(and(eq(roomNotes.userId, userId), eq(roomNotes.roomId, roomId)));
+    return;
+  }
+  if (note.length > 64) throw new Error("note must be 1-64 characters");
+  await db.insert(roomNotes).values({
+    id: generateId(), userId, roomId, note, updatedAt: Date.now(),
+  }).onConflictDoUpdate({
+    target: [roomNotes.userId, roomNotes.roomId],
+    set: { note, updatedAt: Date.now() },
+  });
+}
+
+export async function getUserRoomNotes(userId: string): Promise<{ roomId: string; note: string }[]> {
+  const rows = await db.select({ roomId: roomNotes.roomId, note: roomNotes.note })
+    .from(roomNotes).where(eq(roomNotes.userId, userId));
+  return rows;
 }

@@ -413,3 +413,19 @@ export async function deleteRoom(roomId: string): Promise<void> {
     await redis.del(`hot:room:${roomId}`);
   } catch {}
 }
+
+// ═══ User removes a room they belong to: direct = delete whole room, group = leave (auto-delete when last member) ═══
+export async function removeRoomForUser(roomId: string, userId: string): Promise<{ action: "deleted" | "left" }> {
+  const [room] = await db.select({ id: rooms.id, type: rooms.type }).from(rooms).where(eq(rooms.id, roomId)).limit(1);
+  if (!room) throw new Error("room not found");
+  const member = await isRoomMember(roomId, userId);
+  if (!member) throw new Error("not a room member");
+  if (room.type === "direct") {
+    await deleteRoom(roomId);
+    return { action: "deleted" };
+  }
+  await db.delete(roomMembers).where(and(eq(roomMembers.roomId, roomId), eq(roomMembers.userId, userId)));
+  const [{ count }] = await db.select({ count: sql<number>`count(*)::int` }).from(roomMembers).where(eq(roomMembers.roomId, roomId));
+  if (Number(count) === 0) await deleteRoom(roomId);
+  return { action: "left" };
+}

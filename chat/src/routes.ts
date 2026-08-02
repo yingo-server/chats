@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { eq, sql, and } from "drizzle-orm";
-import { sendMessage, getMessages, getMessagesAdmin, createRoom, deleteRoom, getUserRooms, getRoomDetail, getRoomMembers, isRoomMember, createDirectRoom, db } from "./core.js";
+import { sendMessage, getMessages, getMessagesAdmin, createRoom, deleteRoom, removeRoomForUser, getUserRooms, getRoomDetail, getRoomMembers, isRoomMember, createDirectRoom, db } from "./core.js";
 import { verifyToken, fetchUser, secureFetch, searchUsers } from "./api.js";
 import { createClient } from "./redis.js";
 import { rooms, roomMembers, coldMessages } from "./schema.js";
@@ -109,7 +109,23 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
     }
   });
 
-  // Search users (proxy to User Service)
+  // ═══ User deletes/leaves a room ═══
+  app.delete("/api/v1/rooms/:id", async (req, reply) => {
+    const t = req.headers.authorization?.slice(7);
+    const u = await verifyToken(t || "");
+    if (!u) return reply.status(401).send({ ok: false, error: "unauthorized" });
+    const { id } = req.params as any;
+    if (typeof id !== "string" || id.length > 16) return reply.status(400).send({ ok: false, error: "invalid id" });
+    try {
+      const result = await removeRoomForUser(id, u.userId);
+      return reply.send({ ok: true, ...result });
+    } catch (e: any) {
+      const code = e.message === "room not found" ? 404 : e.message === "not a room member" ? 403 : 500;
+      return reply.status(code).send({ ok: false, error: e.message });
+    }
+  });
+
+  // ═══ Search users (proxy to User Service) ═══
   app.get("/api/v1/users/search", async (req, reply) => {
     const t = req.headers.authorization?.slice(7);
     const u = await verifyToken(t || "");
