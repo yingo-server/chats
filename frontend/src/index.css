@@ -94,3 +94,21 @@
     -webkit-touch-callout: none;
   }
 }
+
+@layer utilities {
+  /* One-shot slide animations so the element ends up with NO transform.
+     Chromium skips backdrop-filter on composited (transformed) layers,
+     which is why the mobile sidebar kept showing a plain translucent bg. */
+  .sidebar-in {
+    animation: sidebar-slide-in 220ms ease-out;
+  }
+  .sidebar-out {
+    animation: sidebar-slide-out 220ms ease-in forwards;
+  }
+  @keyframes sidebar-slide-in {
+    from { transform: translateX(-100%); }
+  }
+  @keyframes sidebar-slide-out {
+    to { transform: translateX(-100%); }
+  }
+}

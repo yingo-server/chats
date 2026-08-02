@@ -64,10 +64,12 @@ export function Sidebar() {
 
       <aside
         className={cn(
-          "flex h-full w-72 flex-col border-r transition-transform duration-200",
+          "flex h-full w-72 flex-col border-r",
           "bg-muted/95 supports-[backdrop-filter]:bg-muted/40 supports-[backdrop-filter]:backdrop-blur-xl",
-          "fixed inset-y-0 left-0 z-30 shadow-2xl md:relative md:translate-x-0 md:shadow-none",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          "fixed inset-y-0 left-0 z-30 shadow-2xl md:relative md:shadow-none",
+          // One-shot animations: transform returns to none after play, so backdrop-filter
+          // actually renders (Chromium drops the backdrop on composited/transformed layers)
+          sidebarOpen ? "sidebar-in md:animate-none" : "sidebar-out md:animate-none"
         )}
       >
         <div className="flex items-center gap-2 border-b px-4 py-3">
