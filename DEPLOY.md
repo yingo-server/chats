@@ -28,8 +28,8 @@ client ──HTTPS──> Nginx/CDN ──> chat-service(:9001) ──HTTPS─�
 
 | Service | Image | Port | Dependencies |
 |---------|-------|------|--------------|
-| user-service | `ghcr.io/yingo-server/yingo-user:v6.2-stable-law` | 9000 | user-db |
-| chat-service | `ghcr.io/yingo-server/yingo-chat:v6.2-stable-law` | 9001 | chat-db, chat-cache, user-service |
+| user-service | `ghcr.io/yingo-server/yingo-user:6.3-stable-raw` | 9000 | user-db |
+| chat-service | `ghcr.io/yingo-server/yingo-chat:6.3-stable-raw` | 9001 | chat-db, chat-cache, user-service |
 | user-db | `postgres:16-alpine` | 5432 | - |
 | chat-db | `postgres:16-alpine` | 5432 | - |
 | chat-cache | `redis:7-alpine` | 6379 | - |
@@ -130,6 +130,15 @@ CREATE TABLE oauth_clients (
   created_at bigint NOT NULL,
   status integer NOT NULL DEFAULT 1
 );
+CREATE TABLE room_notes (
+  id varchar(16) PRIMARY KEY,
+  user_id varchar(16) NOT NULL REFERENCES users(id),
+  room_id varchar(16) NOT NULL,
+  note varchar(64) NOT NULL,
+  updated_at bigint NOT NULL
+);
+CREATE UNIQUE INDEX idx_room_notes_user_room_unique ON room_notes (user_id, room_id);
+CREATE INDEX idx_room_notes_user_id ON room_notes (user_id);
 SQL
 
 # ┌────── 2. Drop all tables in chat-db and recreate ──────┐
@@ -232,7 +241,7 @@ docker run -d --name user-service --network yingo-net \
   -e REDIS_URL="redis://chat-cache:6379" \
   -v /etc/ssl/yingo:/etc/ssl/yingo:ro \
   --restart unless-stopped \
-  ghcr.io/yingo-server/yingo-user:v6.2-stable-law
+  ghcr.io/yingo-server/yingo-user:6.3-stable-raw
 ```
 
 ### 5. Start the Chat Service
@@ -253,7 +262,7 @@ docker run -d --name chat-service --network yingo-net \
   -e TOKEN_SECRET="dev-token-secret-change-in-production" \
   -v /etc/ssl/yingo:/etc/ssl/yingo:ro \
   --restart unless-stopped \
-  ghcr.io/yingo-server/yingo-chat:v6.2-stable-law
+  ghcr.io/yingo-server/yingo-chat:6.3-stable-raw
 ```
 
 ### 6. Verify
@@ -353,7 +362,7 @@ docker run -d --name user-service --network yingo-net \
   -e INTERNAL_API_KEY="<INTERNAL_API_KEY>" \
   -v <SSL_CERT_DIR>:/etc/ssl/yingo:ro \
   --restart unless-stopped \
-  ghcr.io/yingo-server/yingo-user:v6.2-stable-law
+  ghcr.io/yingo-server/yingo-user:6.3-stable-raw
 ```
 
 ### 7. Start the Chat Service
@@ -374,20 +383,22 @@ docker run -d --name chat-service --network yingo-net \
   -e TOKEN_SECRET="<TOKEN_SECRET>" \
   -v <SSL_CERT_DIR>:/etc/ssl/yingo:ro \
   --restart unless-stopped \
-  ghcr.io/yingo-server/yingo-chat:v6.2-stable-law
+  ghcr.io/yingo-server/yingo-chat:6.3-stable-raw
 ```
 
 ### 8. Frontend Deployment
 
-> Frontend lives in the `yingo-server/chats-apps` repository (pure user-facing pages), statically built and manually deployed on Netlify.
+> Frontend lives in **this repository** at `frontend/` and is auto-deployed by Netlify
+> (monitors the `main` branch; `netlify.toml` publishes the `frontend/` directory).
+> API base URLs are baked at build time from `.env` (`VITE_USER_API` / `VITE_CHAT_API`).
 
-The frontend is static files; place them on Nginx or a CDN. Build:
+Manual build (alternative hosts):
 
 ```bash
 cd frontend
 npm install
 npm run build
-# Output in dist/; drag-and-drop onto Netlify; _redirects built in for SPA fallback
+# Output in dist/; host the dist/ folder on Nginx/CDN (SPA fallback to index.html)
 ```
 
 ---
@@ -489,7 +500,7 @@ docker rm user-service chat-service
 #!/bin/bash
 set -e
 
-TAG=${1:-v6.2-stable-law}
+TAG=${1:-6.3-stable-raw}
 
 docker login ghcr.io -u yingo-server -p <GITHUB_PAT>
 docker pull ghcr.io/yingo-server/yingo-user:$TAG
@@ -548,7 +559,8 @@ docker inspect chat-service --format '{{.HostConfig.NetworkMode}}'
 
 ## Frontend Deployment
 
-Frontend lives in the `yingo-server/chats-apps` repository (pure user-facing pages), statically built and manually deployed on Netlify.
+Frontend lives in **this repository** at `frontend/` and is auto-deployed by Netlify
+(monitors the `main` branch; `netlify.toml` publishes the `frontend/` directory).
 
 ### Build
 
@@ -556,7 +568,7 @@ Frontend lives in the `yingo-server/chats-apps` repository (pure user-facing pag
 cd frontend
 npm install
 npm run build
-# Output in dist/; drag-and-drop onto Netlify; _redirects built in for SPA fallback
+# Output in dist/; host the dist/ folder on Nginx/CDN (SPA fallback to index.html)
 ```
 
 ### Frontend Tech Stack

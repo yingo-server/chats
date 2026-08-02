@@ -1,445 +1,355 @@
 # Yingo Server — API Documentation
 
-Covers the REST endpoints of the User Service and Chat Service.
+**Version**: `6.3-stable-raw` · **Document date**: 2026-08-02
 
-- **Base URL (production)**: `https://server.344977.xyz:9000` (user) / `:9001` (chat)
-- **Local**: `http://localhost:9000` / `http://localhost:9001`
-- Unless noted, all responses are JSON: `{ "ok": true, "data": ... }` or `{ "ok": false, "error": "..." }`
+> This document is synchronized with the running code (`user/src/routes.ts`, `chat/src/routes.ts`,
+> `chat/src/socket.ts`). Every endpoint below has been verified by the integration suite
+> (`debug/delib.py`, 412 test cases) against both the local and the production deployment.
+>
+> **What changed in 6.3** (vs. 6.2):
+> - `DELETE /api/v1/rooms/:id` — a user deletes/leaves a room (DM: deletes the room; group: leaves;
+>   last member leaving deletes the room)
+> - `PUT /api/v1/me/room-notes/:roomId` + `GET /api/v1/me/room-notes` — per-user room notes
+>   (visible only to the owner)
+> - `GET /api/v1/users/search` on the User Service (fuzzy username search)
+> - Removed: `POST /logout`, `DELETE /tokens/me`, `GET|DELETE /api-keys/me|:id`,
+>   `GET /admin/debug/config` (endpoints no longer exist in the running code)
 
 ---
 
-## 1. User Service (Port 9000)
+## 1. Common Conventions
 
-### 1.1 Authentication Header
+### 1.1 Base URLs
+
+| Environment | User Service | Chat Service |
+|-------------|--------------|--------------|
+| Production | `https://server.344977.xyz:9000` | `https://server.344977.xyz:9001` |
+| Local | `http://localhost:9000` | `http://localhost:9001` |
+
+### 1.2 Authentication
 
 ```
 Authorization: Bearer <short_token | long_token | api_key>
 ```
 
-| Token Type | Format | Validity |
+| Token type | Format | Validity |
 |------------|--------|----------|
-| short_token | 32 hex chars | 1 hour |
-| long_token | 64 hex chars | 30 days |
-| api_key | `mk-` or `rk-` prefix | Configurable (7/30/60/90/180 days) |
+| `short_token` | 32 hex chars | 1 hour |
+| `long_token` | 64 hex chars | 30 days |
+| `api_key` | `mk-` / `rk-` prefix | 7 / 30 / 60 / 90 / 180 days |
 
-### 1.2 Admin Permission
+- Internal (service-to-service) calls use the `x-internal-key` header instead.
+- Admin endpoints additionally require the token's `permission` to be `admin`.
+- **First registered user in an empty database automatically becomes `admin`.**
 
-| Permission | Capabilities |
-|------------|-------------|
-| `admin` | User management, token management, metrics, debug |
-| `user` | Normal user features only |
+### 1.3 Response Format
 
-First registered user in an empty database automatically becomes `admin`.
+Success: `{ "ok": true, ...fields }` — errors: `{ "ok": false, "error": "<message>" }`
 
----
-
-### 1.3 Public Endpoints
-
-#### POST `/api/v1/register`
-
-Register a new user.
-
-**Request Body**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `global_name` | string | Yes | 1-64 chars, `[a-zA-Z0-9_\-]` only |
-| `app_name` | string | Yes | App name, 1-64 chars |
-| `password` | string | Yes | 6-64 chars |
-| `invite_code` | string | No | Invite code |
-
-**Success 201**
-
-```json
-{ "ok": true, "data": { "user": { "id": "a1b2c3d4e5f6g7h8", "global_name": "test", "app_names": {"test": "test"}, "created_at": 1736000000000 } } }
-```
-
-**Errors**: `username taken` (409), `invalid username` / `invalid app name` / `weak password` (400), `invalid invite code` (400)
-
-#### POST `/api/v1/login`
-
-Login with username + password.
-
-**Request Body**: `{ "global_name": string, "app_name": string, "password": string }`
-
-**Success 200**
-
-```json
-{ "ok": true, "data": { "user": { "id": "...", "global_name": "...", "app_names": {}, "permission": "user" }, "short_token": "...", "short_expires": 1736003600000, "long_token": "...", "long_expires": 1738595600000 } }
-```
-
-**Errors**: `user not found` / `wrong password` (401)
-
-#### GET `/api/v1/health`
-
-Service health check. **Success 200**
-
-```json
-{ "status": "ok", "version": "1.0.0" }
-```
-
----
-
-### 1.4 Token Management
-
-#### GET `/api/v1/verify`
-
-Verify token and return user info.
-
-**Request**: Bearer token
-
-**Success 200**
-
-```json
-{ "ok": true, "data": { "user": { "id": "...", "global_name": "...", "app_names": {}, "permission": "user" } } }
-```
-
-#### GET `/api/v1/tokens/me`
-
-List tokens of current user.
-
-**Success 200**: Token list with scopes, expiration, creation time.
-
-#### DELETE `/api/v1/tokens/me`
-
-Revoke all tokens of current user.
-
-**Success 200**
-
-```json
-{ "ok": true, "data": { "revoked": true } }
-```
-
----
-
-### 1.5 User Endpoints
-
-#### GET `/api/v1/users/me`
-
-Get current user info.
-
-**Success 200**
-
-```json
-{ "ok": true, "data": { "user": { "id": "...", "global_name": "...", "app_names": {}, "permission": "user" } } }
-```
-
-#### GET `/api/v1/users/:id`
-
-Get user info by ID.
-
-**Success 200**
-
-```json
-{ "ok": true, "data": { "user": { "id": "...", "global_name": "...", "app_names": {} } } }
-```
-
-**Errors**: `user not found` (404)
-
-#### POST `/api/v1/logout`
-
-Log out current user.
-
-**Success 200**
-
-```json
-{ "ok": true, "data": { "logged_out": true } }
-```
-
----
-
-### 1.6 API Keys
-
-#### POST `/api/v1/api-keys`
-
-Create an API key.
-
-**Request Body**
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | Yes | 1-64 chars |
-| `scopes` | string[] | No | Comma-separated list, e.g. `read,write` |
-| `valid_days` | number | No | 7, 30, 60, 90, or 180 (default 30) |
-| `rate_limit` | number | No | Requests/minute (default 100) |
-
-**Success 201**
-
-```json
-{ "ok": true, "data": { "key": { "id": "...", "name": "...", "scopes": "...", "rate_limit": 100, "expires_at": 1738595600000 }, "api_key": "mk-..." } }
-```
-
-> The `api_key` full value is only returned once.
-
-#### GET `/api/v1/api-keys/me`
-
-List API keys of current user.
-
-#### DELETE `/api/v1/api-keys/:id`
-
-Revoke an API key.
-
----
-
-### 1.7 Admin Endpoints
-
-All require `admin` permission. Support:
-
-- `?limit` — max rows (default 20)
-- `?offset` — pagination offset
-- `?search` — keyword search
-- Sorting: `created_at DESC`
-
-#### GET `/api/v1/admin/users`
-
-List users.
-
-**Success 200**
-
-```json
-{ "ok": true, "data": { "users": [ { "id": "...", "global_name": "...", "app_names": {}, "permission": "user", "online": false, "created_at": 1736000000000 } ], "total": 1 } }
-```
-
-#### GET `/api/v1/admin/users/:id`
-
-Get user details.
-
-**Success 200**
-
-```json
-{ "ok": true, "data": { "user": { "id": "...", "global_name": "...", "app_names": {}, "permission": "user", "online": false, "created_at": 1736000000000 } } }
-```
-
-#### PUT `/api/v1/admin/users/:id/permission`
-
-Update user permission.
-
-**Request Body**: `{ "permission": "admin" | "user" }`
-
-**Success 200**
-
-```json
-{ "ok": true, "data": { "user": { "id": "...", "permission": "admin" } } }
-```
-
-**Errors**: `invalid permission` (400), `cannot demote the last admin` (400), `user not found` (404)
-
-#### GET `/api/v1/admin/tokens`
-
-List all tokens.
-
-**Success 200**: Token list with user info, expiration, revocation status.
-
-#### DELETE `/api/v1/admin/tokens/:id`
-
-Revoke a specific token.
-
-#### GET `/api/v1/metrics`
-
-Service metrics (requireAdmin; no auth → 403).
-
-**Success 200**
-
-```json
-{ "ok": true, "data": { "metrics": { "uptime_seconds": 1234, "total_requests": 567, "requests_per_minute": 12, "db_pool": { "total": 10, "idle": 8 }, "memory_usage_mb": 45.2 } } }
-```
-
-#### GET `/api/v1/debug/config`
-
-Debug configuration (returns JSON in dev/test).
-
----
-
-### 1.8 Internal Endpoints
-
-Require `x-internal-key` header matching `INTERNAL_API_KEY`.
-
-#### GET `/api/v1/internal/user/:id`
-
-Internal user lookup (used by Chat Service).
-
-**Success 200**
-
-```json
-{ "ok": true, "data": { "user": { "id": "...", "global_name": "...", "app_names": {}, "permission": "user", "online": false } } }
-```
-
-**Errors**: `user not found` (404)
-
----
-
-## 2. Chat Service (Port 9001)
-
-### 2.1 WebSocket
-
-```
-wss://server.344977.xyz:9001/socket.io
-```
-
-**Connection handshake**
-
-```json
-{ "token": "<long_token>", "user": { "id": "xxx", "global_name": "yyy", "app_names": {} } }
-```
-
-**Events**
-
-| Event | Direction | Description |
-|-------|-----------|-------------|
-| `v1:join` | Client → Server | Join room |
-| `v1:leave` | Client → Server | Leave room |
-| `v1:message` | Client → Server | Send message |
-| `v1:online` | Server → Client | Online status update |
-| `v1:message` | Server → Client | New message broadcast |
-| `v1:error` | Server → Client | Error notification |
-| `disconnect` | Client → Server | Disconnect |
-
-**Send message payload**
-
-```json
-{ "roomId": "xxx", "type": "text", "content": "hello" }
-```
-
-**Server broadcast payload**
-
-```json
-{ "roomId": "xxx", "message": { "id": "msg1", "room_id": "xxx", "sender_id": "uid1", "sender_name": "alice", "content": "hello", "type": "text", "sent_at": 1736000000000 }, "user": { "id": "uid1", "global_name": "alice", "app_names": {} } }
-```
-
----
-
-### 2.2 Rooms
-
-#### POST `/api/v1/rooms/direct`
-
-Create a direct chat.
-
-**Request Body**: `{ "target_user_id": string, "app_name"?: string }`
-
-**Success 201**
-
-```json
-{ "ok": true, "data": { "room": { "id": "r1", "type": "direct", "name": null, "created_at": 1736000000000 }, "members": [ { "user_id": "uid1" }, { "user_id": "uid2" } ] } }
-```
-
-#### POST `/api/v1/rooms/group`
-
-Create a group chat.
-
-**Request Body**: `{ "name": string (1-64), "member_ids": string[] }`
-
-**Success 201**: Same structure as direct room, `type: "group"`.
-
-#### GET `/api/v1/rooms/me`
-
-List rooms of current user.
-
-**Success 200**: Room list with member info and last message.
-
----
-
-### 2.3 Messages
-
-#### GET `/api/v1/rooms/:id/messages`
-
-Get message history (Redis + PostgreSQL merged, paginated).
-
-**Query Params**
-
-| Param | Type | Default | Description |
-|-------|------|---------|-------------|
-| `limit` | number | 50 | Max 100 |
-| `offset` | number | 0 | Pagination offset |
-| `before` | number | - | Timestamp (ms), only messages earlier than this |
-
-**Success 200**
-
-```json
-{ "ok": true, "data": { "messages": [ { "id": "msg1", "room_id": "r1", "sender_id": "uid1", "sender_name": "alice", "content": "hello", "type": "text", "sent_at": 1736000000000, "recalled": false } ], "total": 1, "has_more": false } }
-```
-
-#### POST `/api/v1/rooms/:id/messages`
-
-Send a message.
-
-**Request Body**: `{ "type": "text" | "image" | "file", "content": string (1-2048), "app_name"?: string }`
-
-**Success 201**: Message object as above.
-
----
-
-### 2.4 Admin Endpoints
-
-All require `admin` permission.
-
-#### GET `/api/v1/admin/rooms`
-
-List all rooms.
-
-**Success 200**: Room list with member count and last message time.
-
-#### DELETE `/api/v1/admin/rooms/:id`
-
-Delete a room (members and messages cascade).
-
-**Success 200**
-
-```json
-{ "ok": true, "data": { "deleted": true } }
-```
-
-#### POST `/api/v1/admin/rooms/:id/members`
-
-Add members to a room.
-
-**Request Body**: `{ "user_ids": string[] }`
-
-**Success 201**
-
-```json
-{ "ok": true, "data": { "members": [ { "id": "m1", "room_id": "r1", "user_id": "uid3", "joined_at": 1736000000000 } ] } }
-```
-
-#### DELETE `/api/v1/admin/rooms/:id/members/:userId`
-
-Remove a member from a room.
-
-#### GET `/api/v1/admin/stats`
-
-Service statistics.
-
-**Success 200**
-
-```json
-{ "ok": true, "data": { "stats": { "total_rooms": 5, "total_messages": 120, "hot_messages": 34, "cold_messages": 86, "active_users": 3 } } }
-```
-
-#### GET `/api/v1/admin/metrics`
-
-Service metrics.
-
-**Success 200**
-
-```json
-{ "ok": true, "data": { "metrics": { "uptime_seconds": 1234, "total_requests": 890, "requests_per_minute": 45, "socket_connections": 12, "redis_cache_hits": 89, "redis_cache_misses": 11, "memory_usage_mb": 67.8 } } }
-```
-
----
-
-## 3. Error Format
-
-```json
-{ "ok": false, "error": "<error code>" }
-```
-
-| HTTP Status | Meaning |
-|-------------|---------|
-| 200 | Success |
-| 201 | Created |
+| HTTP | Meaning |
+|------|---------|
+| 200 / 201 | Success / Created |
 | 400 | Invalid parameters |
-| 401 | Unauthorized (missing/invalid token) |
-| 403 | Forbidden (insufficient permission) |
+| 401 | Missing or invalid token / credentials |
+| 403 | Forbidden (insufficient permission / not a member) |
 | 404 | Resource not found |
-| 409 | Conflict (e.g. username taken) |
-| 429 | Rate limited |
-| 500 | Internal server error |
+| 409 | Conflict (username taken) |
+| 429 | Rate limited (login: 30/min per IP) |
+| 500 / 502 | Internal error / upstream unreachable |
+
+### 1.4 Rate Limiting
+
+- Login: 30 attempts / 60 s per IP (`LOGIN_RATE_LIMIT` / `LOGIN_RATE_WINDOW` env vars).
+- API keys carry their own `rate_limit` (default 100 req/min).
+
+---
+
+## 2. User Service (Port 9000)
+
+### 2.1 Public Endpoints
+
+#### POST `/api/v1/register` — Register
+
+| Field | Type | Required | Rules |
+|-------|------|----------|-------|
+| `username` | string | Yes | 2–20 chars |
+| `password` | string | Yes | 8–128 chars |
+| `app_id` | string | No | Defaults to `"chat"` |
+
+**201**
+
+```json
+{ "ok": true, "user": { "id": "a1b2c3d4e5f6g7h8", "global_name": "test", "app_names": {"chat": "test"}, "permission": "user", "created_at": 1736000000000 } }
+```
+
+**Errors**: `username must be 2-20 characters` / `password must be 8-128 characters` (400),
+`username already taken` (409→400 in body), `registration failed, please try again later` (500)
+
+#### POST `/api/v1/login` — Login
+
+Body: `{ "username": string, "password": string }` (username 2–64, password 1–128)
+
+**200**
+
+```json
+{ "ok": true, "user": { "id": "...", "global_name": "...", "app_names": {}, "permission": "user" },
+  "short_token": "...", "short_expires": 1736003600000, "long_token": "...", "long_expires": 1738595600000 }
+```
+
+**Errors**: `invalid username or password` (401), `too many login attempts, please try again later` (429)
+
+#### GET `/api/v1/health` — Liveness
+
+**200**: `{ "ok": true, "service": "user-v1", "uptime": 123.4 }`
+
+#### GET `/api/v1/ready` — Readiness
+
+**200**: `{ "ok": true, "service": "user-v1", "db": "ok" }` (DB down → `ok: false`, `db: "error"`)
+
+### 2.2 Authenticated Endpoints
+
+All require `Authorization: Bearer <token>` (401 on missing/invalid token).
+
+#### GET `/api/v1/verify` — Verify token
+
+**200**: `{ "ok": true, "user_id": "...", "scopes": [], "permission": "user" }`
+
+#### GET `/api/v1/users/me` — Current user
+
+**200**: `{ "ok": true, "user": { "id", "global_name", "app_names", "permission", "created_at", "last_online_at", "online" } }`
+
+#### GET `/api/v1/users/:id` — Public profile by ID
+
+ID must be 1–16 chars (`400 invalid id`). **200**: `{ "ok": true, "user": {...} }` · **404** `user not found`
+
+#### GET `/api/v1/users/search?query=...` — Fuzzy username search
+
+Empty query → `{ "ok": true, "users": [] }`. **200**: `{ "ok": true, "users": [{ "id", "global_name", "app_names" }] }` (max 20)
+
+#### GET `/api/v1/tokens/me` — Own token list
+
+**200**: `{ "ok": true, "tokens": [{ "id", "scopes", "short_expires", "long_expires", "created_at", "revoked_at", "last_used_at" }], "total": n }`
+
+#### POST `/api/v1/api-keys` — Create API key
+
+| Field | Type | Required | Rules |
+|-------|------|----------|-------|
+| `name` | string | Yes | 1–64 chars |
+| `scopes` | string[] | Yes | Array (e.g. `["read","write"]`) |
+| `expires_days` | number | Yes | 7, 30, 60, 90, or 180 |
+
+**201**
+
+```json
+{ "ok": true, "key": { "id": "...", "name": "...", "scopes": "read,write", "rate_limit": 100, "expires_at": 1738595600000 }, "api_key": "mk-..." }
+```
+
+> The full `api_key` value is returned only once at creation.
+
+#### PUT `/api/v1/me/room-notes/:roomId` — Set room note
+
+Body: `{ "note": string }` (1–64 chars; **empty string deletes the note**)
+
+**200**: `{ "ok": true, "roomId": "...", "note": "My note" | null }`
+
+**Errors**: `note must be a string` / `note must be 1-64 characters` / `invalid roomId` (400), `failed to save note` (500)
+
+#### GET `/api/v1/me/room-notes` — Own room notes
+
+**200**: `{ "ok": true, "notes": [{ "roomId": "...", "note": "My note" }] }`
+
+> Notes are strictly per-user; they are not visible to other members.
+
+### 2.3 Admin Endpoints
+
+All require an **admin** token. Non-admin → **403** `admin access required`.
+
+#### GET `/api/v1/admin/users` — User list (max 200)
+
+**200**: `{ "ok": true, "users": [{ "id", "global_name", "app_names", "permission", "online", "created_at", "last_online_at" }], "total": n }`
+
+#### GET `/api/v1/admin/users/:id` — User detail
+
+**200**: single user object · **404** `user not found`
+
+#### PUT `/api/v1/admin/users/:id/permission` — Set permission
+
+Body: `{ "permission": "admin" | "user" }`
+
+**200**: `{ "ok": true, "userId": "...", "permission": "admin" }`
+
+**Errors**: `permission must be 'admin' or 'user'` (400) · `cannot demote yourself` (400) ·
+`cannot demote the last admin` (400) · `user not found` (404)
+
+#### DELETE `/api/v1/admin/users/:id` — Delete user
+
+**200**: `{ "ok": true, "deleted": "<id>" }`
+
+**Errors**: `cannot delete yourself` (400) · `cannot delete the last admin` (400) · `user not found` (404)
+
+#### GET `/api/v1/admin/tokens` — All tokens (max 200)
+
+**200**: `{ "ok": true, "tokens": [{ "id", "userId", "scopes", "short_expires", "long_expires", "created_at", "revoked_at", "last_used_at" }], "total": n }`
+
+#### DELETE `/api/v1/admin/tokens/:id` — Revoke a token
+
+**200**: `{ "ok": true, "revoked": "<id>" }` · **404** `token not found`
+
+#### GET `/api/v1/metrics` — Service metrics
+
+**200**: `{ "ok": true, "uptime": 123, "memory": {...}, "pid": 1 }` — non-admin → 403
+
+### 2.4 Internal Endpoint
+
+Requires `x-internal-key: <INTERNAL_API_KEY>` (mismatch → **403** `forbidden`).
+
+#### GET `/api/v1/internal/user/:id` — User lookup (used by Chat Service)
+
+ID 1–16 chars. **200**: `{ "ok": true, "id": "...", "name": "...", "app_names": {...} }` · **404** `{ "ok": false }`
+
+---
+
+## 3. Chat Service (Port 9001)
+
+### 3.1 Room Endpoints
+
+#### POST `/api/v1/rooms/direct` — Create DM
+
+Body: `{ "targetUserId": string }`
+
+**201**: `{ "ok": true, "room": { "id", "type": "direct", "name": null, "created_at" } }`
+
+**Errors**: `targetUserId required` (400) · `cannot chat with self` (400) · 500 on failure
+
+> Creating a DM for the same user pair is **idempotent** — the existing room is returned.
+
+#### POST `/api/v1/rooms/group` — Create group
+
+Body: `{ "name"?: string (1–64), "memberIds"?: string[] (max 100) }`
+
+**201**: room object with `"type": "group"`. **Errors**: `name must be string` / `memberIds must be array` / `memberIds max 100` (400)
+
+#### GET `/api/v1/rooms` — My room list
+
+**200**: `{ "ok": true, "rooms": [{ "id", "type", "name", "created_at", "last_message", "members" }] }`
+
+#### GET `/api/v1/rooms/:id` — Room detail
+
+**200**: `{ "ok": true, "room": {...} }` · **403** `not a room member` · **404** `room not found`
+
+#### GET `/api/v1/rooms/:id/members` — Room members
+
+**200**: `{ "ok": true, "members": [{ "id", "room_id", "user_id", "joined_at" }], "total": n }` · 403 / 404 as above
+
+#### DELETE `/api/v1/rooms/:id` — Delete DM / leave group
+
+| Room type | Behavior |
+|-----------|----------|
+| `direct` | The room is **deleted entirely** for both members |
+| `group` | The user **leaves**; if they were the last member the room is **deleted** |
+
+ID 1–16 chars. **200**: `{ "ok": true, "action": "deleted" | "left" }`
+
+**Errors**: `invalid id` (400) · `room not found` (404) · `not a room member` (403)
+
+### 3.2 Message Endpoints
+
+#### GET `/api/v1/rooms/:id/messages` — Message history
+
+Query: `cursor?` (timestamp ms) · `limit` (1–100, default 30; `400 limit must be 1-100` otherwise)
+
+Reads hot (Redis) + cold (PostgreSQL) messages, merged and paginated.
+
+**200**: `{ "ok": true, "messages": [{ "id", "room_id", "sender_id", "sender_name", "content", "type", "sent_at", "recalled" }], "next_cursor": "...", "has_more": bool }`
+
+**Errors**: `not a room member` (403) · 500
+
+#### POST `/api/v1/rooms/:id/messages` — Send message
+
+Body: `{ "content": string (1–2048), "type"?: "text" | "image" | "file" }` (default `text`)
+
+**201**: `{ "ok": true, "message": {...} }`
+
+**Errors**: `content required` (400) · `not a room member` (403) · content length rule → 400 · 500
+
+### 3.3 Proxy Endpoints
+
+#### POST `/api/v1/login` — Login proxy (forwards to User Service)
+
+Body: `{ "username", "password" }` — response passed through unchanged. **502** `user service unreachable`
+
+#### GET `/api/v1/users/search?query=...` — User search proxy
+
+Requires Bearer token; forwards the token to User Service. **200**: `{ "ok": true, "users": [...] }`
+
+### 3.4 Health & Metrics
+
+- `GET /api/v1/health` → `{ "ok": true, "service": "chat-v1", "uptime": ... }`
+- `GET /api/v1/ready` → `{ "ok": true, "service": "chat-v1", "db": "ok", "redis": "ok" }`
+- `GET /api/v1/metrics` → uptime / memory / pid (no auth)
+
+### 3.5 Admin Endpoints
+
+All require an **admin** token (403 otherwise).
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/v1/admin/rooms` | All rooms (max 200): `{ ok, rooms, total }` |
+| `GET /api/v1/admin/rooms/:id/members` | All members of a room |
+| `GET /api/v1/admin/rooms/:id/messages` | Message history **bypassing membership check** (`cursor`, `limit`) |
+| `POST /api/v1/admin/rooms/:id/messages` | Send message on behalf: `{ senderId, content, type? }` → 201 |
+| `POST /api/v1/admin/rooms/direct` | Create DM between two arbitrary users: `{ userA, userB }` → 201 |
+| `POST /api/v1/admin/rooms/group` | Create group with specified creator: `{ creatorId, name, memberIds? }` → 201 |
+| `POST /api/v1/admin/rooms/:id/members` | Add member: `{ userId }` → 201 |
+| `DELETE /api/v1/admin/rooms/:roomId/members/:userId` | Remove member |
+| `GET /api/v1/admin/stats` | `{ ok, stats: { rooms, members, coldMessages, onlineUsers } }` |
+| `DELETE /api/v1/admin/rooms/:id` | Delete a room (cascade) → 200 `{ ok, deleted }` |
+
+---
+
+## 4. WebSocket (Chat Service)
+
+```
+wss://server.344977.xyz:9001/socket.io   (long_token in handshake auth)
+```
+
+Handshake payload: `{ "token": "<long_token>", "user": { "id", "global_name", "app_names" } }`
+
+### 4.1 Events
+
+| Event | Direction | Payload | Behavior |
+|-------|-----------|---------|----------|
+| `v1:join` | C → S | `{ roomId }` | Joins the room socket room; emits `v1:online` to the room |
+| `v1:leave` | C → S | `{ roomId }` | Leaves; emits `v1:online { online: false }` |
+| `v1:message` | C → S | `{ roomId, content, type }` (+ack callback) | Persists + broadcasts; error → `v1:error` |
+| `v1:message` | S → C | safe message object | Broadcast to all room members |
+| `v1:online` | S → C | `{ userId, online }` | Online/offline presence per room |
+| `v1:error` | S → C | `{ message }` | `invalid roomId` / `not a room member` / `join failed` / send errors |
+| `disconnect` | C → S | — | Marks user offline, notifies rooms |
+
+### 4.2 Message shape
+
+```json
+{ "roomId": "r1", "message": { "id": "msg1", "room_id": "r1", "sender_id": "uid1", "sender_name": "alice", "content": "hello", "type": "text", "sent_at": 1736000000000 } }
+```
+
+---
+
+## 5. Data Model (PostgreSQL)
+
+| Table | Service DB | Key columns |
+|-------|------------|-------------|
+| `users` | cold_user | id, global_name (unique), app_names (jsonb), password_hash, permission, online |
+| `tokens` | cold_user | id, user_id, token_lookup, short_hash, long_hash, scopes, short/long_expires, revoked_at |
+| `api_keys` | cold_user | id, user_id, key_hash, prefix, name, scopes, rate_limit, expires_at |
+| `oauth_clients` | cold_user | id, client_id, client_secret_hash, name, app_id, status |
+| `room_notes` | cold_user | id, user_id, room_id, note (≤64), updated_at — unique (user_id, room_id) |
+| `rooms` | cold_chat | id, type (direct/group), name, creator_id, created_at |
+| `room_members` | cold_chat | id, room_id, user_id, joined_at — unique (room_id, user_id) |
+| `cold_messages` | cold_chat | id, room_id, sender_id, sender_name, content, type, sent_at, recalled, deleted flags |
+
+## 6. Verification Status
+
+- Integration suite: 24 suites / **412 test cases** (debug/delib.py)
+- Local (2026-08-02, `CLOUD_MODE=0`): **412/412 passed**
+- Production 6.3-stable-raw (2026-08-02): core suites verified; admin suites pass on a clean database
