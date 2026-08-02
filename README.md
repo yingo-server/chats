@@ -1,6 +1,6 @@
-# Yingo Server
+﻿# Yingo Server
 
-**Version**: `6.3-stable-raw` · **Updated**: 2026-08-02
+**Version**: `v6.4-stable-Whitenight` 路 **Updated**: 2026-08-02
 
 Real-time chat platform: microservice backend (Fastify + Socket.IO + PostgreSQL + Redis),
 React SPA frontend (Netlify), and a full integration test framework.
@@ -31,50 +31,50 @@ React SPA frontend (Netlify), and a full integration test framework.
 |---------|-----------|------|----------------|
 | User Service | `user/` | 9000 | Registration, login, tokens, API keys, permissions, room notes |
 | Chat Service | `chat/` | 9001 | Rooms, messages, WebSocket, admin stats |
-| Frontend | `frontend/` | — | React 19 SPA (Netlify, `chats.344977.xyz`) |
-| Test suite | `debug/` | — | Python integration framework (412 cases, 24 suites) |
+| Frontend | `frontend/` | 鈥?| React 19 SPA (Netlify, `chats.344977.xyz`) |
+| Test suite | `debug/` | 鈥?| Python integration framework (412 cases, 24 suites) |
 
 ## Repository Structure
 
 ```
-├── user/                     # User Service (port 9000)
-│   ├── src/
-│   │   ├── index.ts          #   service startup
-│   │   ├── routes.ts         #   REST routes (20 endpoints)
-│   │   ├── core.ts           #   business logic (auth, keys, notes)
-│   │   ├── db.ts             #   PostgreSQL connection
-│   │   ├── schema.ts         #   Drizzle table definitions
-│   │   └── types.ts          #   shared types
-│   ├── migrations/           #   SQL migrations (e.g. 0003 room_notes)
-│   ├── tests/                #   Vitest unit tests (52)
-│   └── Dockerfile            #   ghcr.io/yingo-server/yingo-user
-├── chat/                     # Chat Service (port 9001)
-│   ├── src/
-│   │   ├── index.ts          #   startup + Socket.IO wiring
-│   │   ├── routes.ts         #   REST routes (23 endpoints)
-│   │   ├── core.ts           #   rooms/messages business logic
-│   │   ├── socket.ts         #   WebSocket event handlers
-│   │   ├── api.ts            #   User Service call adapter
-│   │   ├── redis.ts          #   Redis hot-zone connection
-│   │   ├── schema.ts         #   Drizzle table definitions
-│   │   └── types.ts
-│   ├── tests/                #   Vitest unit tests (52)
-│   └── Dockerfile            #   ghcr.io/yingo-server/yingo-chat
-├── frontend/                 # React 19 SPA
-│   └── src/
-│       ├── api/              #   REST client (user + chat)
-│       ├── components/       #   rooms, layout, dialogs, context menu
-│       ├── hooks/            #   useSocket, useOnlineStatus, ...
-│       ├── pages/            #   ChatPage, ProfilePage, ...
-│       ├── stores/           #   Zustand stores (auth, room, message, ui)
-│       └── types/            #   shared API types
-├── debug/                    # Python integration test framework
-│   ├── delib.py              #   24 suites / 412 test cases
-│   └── main.py               #   console runner (progress + logs)
-├── .github/workflows/        # CI: build+push images to GHCR on push
-├── API.md                    # Complete REST + WebSocket reference
-├── DEPLOY.md                 # Deployment guide (production + generic)
-└── netlify.toml              # Netlify publish config (frontend/)
+鈹溾攢鈹€ user/                     # User Service (port 9000)
+鈹?  鈹溾攢鈹€ src/
+鈹?  鈹?  鈹溾攢鈹€ index.ts          #   service startup
+鈹?  鈹?  鈹溾攢鈹€ routes.ts         #   REST routes (20 endpoints)
+鈹?  鈹?  鈹溾攢鈹€ core.ts           #   business logic (auth, keys, notes)
+鈹?  鈹?  鈹溾攢鈹€ db.ts             #   PostgreSQL connection
+鈹?  鈹?  鈹溾攢鈹€ schema.ts         #   Drizzle table definitions
+鈹?  鈹?  鈹斺攢鈹€ types.ts          #   shared types
+鈹?  鈹溾攢鈹€ migrations/           #   SQL migrations (e.g. 0003 room_notes)
+鈹?  鈹溾攢鈹€ tests/                #   Vitest unit tests (52)
+鈹?  鈹斺攢鈹€ Dockerfile            #   ghcr.io/yingo-server/yingo-user
+鈹溾攢鈹€ chat/                     # Chat Service (port 9001)
+鈹?  鈹溾攢鈹€ src/
+鈹?  鈹?  鈹溾攢鈹€ index.ts          #   startup + Socket.IO wiring
+鈹?  鈹?  鈹溾攢鈹€ routes.ts         #   REST routes (23 endpoints)
+鈹?  鈹?  鈹溾攢鈹€ core.ts           #   rooms/messages business logic
+鈹?  鈹?  鈹溾攢鈹€ socket.ts         #   WebSocket event handlers
+鈹?  鈹?  鈹溾攢鈹€ api.ts            #   User Service call adapter
+鈹?  鈹?  鈹溾攢鈹€ redis.ts          #   Redis hot-zone connection
+鈹?  鈹?  鈹溾攢鈹€ schema.ts         #   Drizzle table definitions
+鈹?  鈹?  鈹斺攢鈹€ types.ts
+鈹?  鈹溾攢鈹€ tests/                #   Vitest unit tests (52)
+鈹?  鈹斺攢鈹€ Dockerfile            #   ghcr.io/yingo-server/yingo-chat
+鈹溾攢鈹€ frontend/                 # React 19 SPA
+鈹?  鈹斺攢鈹€ src/
+鈹?      鈹溾攢鈹€ api/              #   REST client (user + chat)
+鈹?      鈹溾攢鈹€ components/       #   rooms, layout, dialogs, context menu
+鈹?      鈹溾攢鈹€ hooks/            #   useSocket, useOnlineStatus, ...
+鈹?      鈹溾攢鈹€ pages/            #   ChatPage, ProfilePage, ...
+鈹?      鈹溾攢鈹€ stores/           #   Zustand stores (auth, room, message, ui)
+鈹?      鈹斺攢鈹€ types/            #   shared API types
+鈹溾攢鈹€ debug/                    # Python integration test framework
+鈹?  鈹溾攢鈹€ delib.py              #   24 suites / 412 test cases
+鈹?  鈹斺攢鈹€ main.py               #   console runner (progress + logs)
+鈹溾攢鈹€ .github/workflows/        # CI: build+push images to GHCR on push
+鈹溾攢鈹€ API.md                    # Complete REST + WebSocket reference
+鈹溾攢鈹€ DEPLOY.md                 # Deployment guide (production + generic)
+鈹斺攢鈹€ netlify.toml              # Netlify publish config (frontend/)
 ```
 
 **Isolation rule**: Chat Service talks to User Service only through `chat/src/api.ts`
@@ -120,61 +120,61 @@ cd ../chat && docker compose up -d --build
 
 | Variable | Default | Service | Description |
 |----------|---------|---------|-------------|
-| `DATABASE_URL` | — | both | PostgreSQL DSN (`colduser:...@user-db/cold_user`, `coldchat:...@chat-db/cold_chat`) |
-| `REDIS_URL` | — | chat | Redis DSN (`redis://chat-cache:6379`) |
+| `DATABASE_URL` | 鈥?| both | PostgreSQL DSN (`colduser:...@user-db/cold_user`, `coldchat:...@chat-db/cold_chat`) |
+| `REDIS_URL` | 鈥?| chat | Redis DSN (`redis://chat-cache:6379`) |
 | `USER_SERVICE_URL` | `http://localhost:9000` | chat | User Service base URL |
 | `INTERNAL_API_KEY` | `dev-internal-...` | both | Key for `x-internal-key` header |
 | `PEPPER_SECRET` | `dev-pepper-...` | both | Password hash pepper |
 | `TOKEN_SECRET` | `dev-token-...` | both | Token HMAC key |
-| `CORS_ORIGINS` | — | both | Comma-separated allowed origins |
-| `SSL_CERT` / `SSL_KEY` | — | both | HTTPS cert paths (prod) |
+| `CORS_ORIGINS` | 鈥?| both | Comma-separated allowed origins |
+| `SSL_CERT` / `SSL_KEY` | 鈥?| both | HTTPS cert paths (prod) |
 | `LOGIN_RATE_LIMIT` / `LOGIN_RATE_WINDOW` | `30` / `60000` | user | Login rate limiting per IP |
-| `NODE_ENV` | — | both | `production` disables debug mode |
-| `DEBUG_SECRET` | — | both | Enables `x-debug-admin` header in production |
+| `NODE_ENV` | 鈥?| both | `production` disables debug mode |
+| `DEBUG_SECRET` | 鈥?| both | Enables `x-debug-admin` header in production |
 
 ## Architecture
 
 ### Hot/Cold message storage
 
 ```
-send → Redis (hot zone, TTL ~10 min)
-            → archived to PostgreSQL on expiry
+send 鈫?Redis (hot zone, TTL ~10 min)
+            鈫?archived to PostgreSQL on expiry
       PostgreSQL (cold zone, persistent)
 ```
 
 - Recent messages are served from Redis for fast read/write; history merges both zones
-  (cursor pagination, no duplicates — verified by `test_pagination_no_duplicates`)
+  (cursor pagination, no duplicates 鈥?verified by `test_pagination_no_duplicates`)
 - No data loss on restart (Redis AOF + cold storage)
 
 ### Token system
 
 ```
-login → short_token (32 hex, 1h) + long_token (30d)
-verify → HMAC-SHA256 with per-token salt, constant-time compare
+login 鈫?short_token (32 hex, 1h) + long_token (30d)
+verify 鈫?HMAC-SHA256 with per-token salt, constant-time compare
 ```
 
 ### Auth model
 
-- `user` — rooms, messages, notes, keys
-- `admin` — user/token/room management, stats, metrics
+- `user` 鈥?rooms, messages, notes, keys
+- `admin` 鈥?user/token/room management, stats, metrics
 - First user on empty DB auto-promoted to `admin` (advisory lock against races)
 - Last-admin protection: the final admin cannot be demoted or deleted
 
 ## API Overview
 
-Full reference: **[API.md](./API.md)** — includes request/response schemas, error codes,
+Full reference: **[API.md](./API.md)** 鈥?includes request/response schemas, error codes,
 WebSocket event payloads, and the data model.
 
 | Service | Count | Highlights |
 |---------|-------|------------|
-| User Service | 20 REST | register/login/verify · users/me/:id/search · tokens/me · api-keys · room-notes (new in 6.3) · admin users/tokens · health/ready/metrics · internal lookup |
-| Chat Service | 23 REST | rooms (direct/group/list/detail/members) · **delete/leave room** (new in 6.3) · messages · login & search proxy · 10 admin endpoints · health/ready/metrics |
-| WebSocket | 5 events | `v1:join` · `v1:leave` · `v1:message` · `v1:online` · `v1:error` |
+| User Service | 20 REST | register/login/verify 路 users/me/:id/search 路 tokens/me 路 api-keys 路 room-notes (new in 6.3) 路 admin users/tokens 路 health/ready/metrics 路 internal lookup |
+| Chat Service | 23 REST | rooms (direct/group/list/detail/members) 路 **delete/leave room** (new in 6.3) 路 messages 路 login & search proxy 路 10 admin endpoints 路 health/ready/metrics |
+| WebSocket | 5 events | `v1:join` 路 `v1:leave` 路 `v1:message` 路 `v1:online` 路 `v1:error` |
 
 ## Frontend
 
 - React 19 + Vite SPA, deployed to Netlify from this repository (`netlify.toml`: `publish = "frontend"`).
-- API endpoints are baked at build time via `.env` (`VITE_USER_API` / `VITE_CHAT_API` → `server.344977.xyz:9000/9001`).
+- API endpoints are baked at build time via `.env` (`VITE_USER_API` / `VITE_CHAT_API` 鈫?`server.344977.xyz:9000/9001`).
 - Key features: room list with notes & member names, chat with hot-path history, WebSocket presence,
   room context menu (delete / set note / properties), mobile long-press menu,
   create-group confirmation (name is permanent), gesture-blocking (selection/drag/middle-click disabled).
@@ -183,7 +183,7 @@ WebSocket event payloads, and the data model.
 
 ### Integration suite (`debug/`)
 
-24 suites, **412 test cases** — health, auth, tokens, rooms, messages, WebSocket (polling +
+24 suites, **412 test cases** 鈥?health, auth, tokens, rooms, messages, WebSocket (polling +
 websocket transports), concurrency, edge cases, permission matrix, large data, resilience.
 
 ```bash
@@ -204,10 +204,10 @@ python debug/main.py "Room Management" "Permission Matrix"
 |------|--------|--------|-----------|
 | 2026-08-02 | Local 6.3 | 412/412 | 100% |
 | 2026-08-02 | Local 6.3 (full, pre-move) | 412/412 | 100% |
-| 2026-08-02 | Production 6.3-stable-raw (clean DB) | all core + admin suites pass | ≥99%* |
+| 2026-08-02 | Production 6.3-stable-raw (clean DB) | all core + admin suites pass | 鈮?9%* |
 
 > \* The only observed variance is the known `fast_reconnect` flake on the production
-> websocket path (≈1 per 30 attempts, absent locally and in 100/100 probe runs).
+> websocket path (鈮? per 30 attempts, absent locally and in 100/100 probe runs).
 > **Median pass rate across all full runs: 100%** (failures only occur in environment-
 > dependent states, never in code paths re-run locally).
 
@@ -246,16 +246,17 @@ Benchmark figures from the stress suites (recent full runs, median values):
 
 ## Deployment
 
-- **Production** (server.344977.xyz): see [DEPLOY.md](./DEPLOY.md) — full `docker run`
+- **Production** (server.344977.xyz): see [DEPLOY.md](./DEPLOY.md) 鈥?full `docker run`
   commands, DB initialization incl. `room_notes`, GRANT steps, upgrade script.
 - **CI**: pushing to `main` (changes under `user/**`, `chat/**`, or workflow files)
   builds and pushes `ghcr.io/yingo-server/yingo-user|yingo-chat` with tags
-  `latest` + `6.3-stable-raw` + commit SHA.
+  `latest` + `v6.4-stable-Whitenight` + commit SHA.
 - **Frontend**: Netlify watches the same `main` branch and auto-deploys `frontend/`.
 
 ## Changelog
 
 | Version | Date | Highlights |
 |---------|------|------------|
+| v6.4-stable-Whitenight | 2026-08-02 | Media attachments (image/audio/video/file upload, sha256 dedup, 2 MB limit, type filter chips) |
 | 6.3-stable-raw | 2026-08-02 | Delete/leave room API; per-user room notes; room context menu + mobile long-press; read-only group names; gesture blocking; dual-transport socket tests |
 | 6.2-stable-law | 2026-07 | Public user profile endpoint; DM member names; debug suite tweaks; English conversion |

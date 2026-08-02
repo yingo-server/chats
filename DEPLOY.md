@@ -1,4 +1,4 @@
-# Yingo Server — Deployment Guide
+﻿# Yingo Server 鈥?Deployment Guide
 
 ---
 
@@ -18,18 +18,17 @@
 ## Architecture Overview
 
 ```
-client ──HTTPS──> Nginx/CDN ──> chat-service(:9001) ──HTTPS──> user-service(:9000)
-                          │                          │
-                          │                     PostgreSQL(:5432)     PostgreSQL(:5432)
-                          │                    Redis(:6379)
+client 鈹€鈹€HTTPS鈹€鈹€> Nginx/CDN 鈹€鈹€> chat-service(:9001) 鈹€鈹€HTTPS鈹€鈹€> user-service(:9000)
+                          鈹?                         鈹?                          鈹?                    PostgreSQL(:5432)     PostgreSQL(:5432)
+                          鈹?                   Redis(:6379)
 ```
 
 ### Service List
 
 | Service | Image | Port | Dependencies |
 |---------|-------|------|--------------|
-| user-service | `ghcr.io/yingo-server/yingo-user:6.3-stable-raw` | 9000 | user-db |
-| chat-service | `ghcr.io/yingo-server/yingo-chat:6.3-stable-raw` | 9001 | chat-db, chat-cache, user-service |
+| user-service | `ghcr.io/yingo-server/yingo-user:v6.4-stable-Whitenight` | 9000 | user-db |
+| chat-service | `ghcr.io/yingo-server/yingo-chat:v6.4-stable-Whitenight` | 9001 | chat-db, chat-cache, user-service |
 | user-db | `postgres:16-alpine` | 5432 | - |
 | chat-db | `postgres:16-alpine` | 5432 | - |
 | chat-cache | `redis:7-alpine` | 6379 | - |
@@ -72,8 +71,7 @@ docker network create yingo-net
 > **Important**: Table structures are defined in code; services do NOT create tables on startup. On first deploy or reset you MUST create tables manually. The application connects with the `colduser`/`coldchat` users (not `yingo`). **After creating tables you MUST run GRANT**, otherwise the app will fail with `42501 permission denied`.
 
 ```bash
-# ┌────── 1. Drop all tables in user-db and recreate ──────┐
-docker exec -i user-db psql -U yingo -d cold_user <<'SQL'
+# 鈹屸攢鈹€鈹€鈹€鈹€鈹€ 1. Drop all tables in user-db and recreate 鈹€鈹€鈹€鈹€鈹€鈹€鈹?docker exec -i user-db psql -U yingo -d cold_user <<'SQL'
 DROP TABLE IF EXISTS oauth_clients, api_keys, tokens, users CASCADE;
 CREATE TABLE users (
   id varchar(16) PRIMARY KEY,
@@ -141,8 +139,7 @@ CREATE UNIQUE INDEX idx_room_notes_user_room_unique ON room_notes (user_id, room
 CREATE INDEX idx_room_notes_user_id ON room_notes (user_id);
 SQL
 
-# ┌────── 2. Drop all tables in chat-db and recreate ──────┐
-docker exec -i chat-db psql -U yingo -d cold_chat <<'SQL'
+# 鈹屸攢鈹€鈹€鈹€鈹€鈹€ 2. Drop all tables in chat-db and recreate 鈹€鈹€鈹€鈹€鈹€鈹€鈹?docker exec -i chat-db psql -U yingo -d cold_chat <<'SQL'
 DROP TABLE IF EXISTS cold_messages, room_members, rooms CASCADE;
 CREATE TABLE rooms (
   id varchar(16) PRIMARY KEY,
@@ -187,18 +184,14 @@ CREATE TABLE media (
 CREATE UNIQUE INDEX idx_media_sha256_unique ON media (sha256);
 SQL
 
-# ┌────── 3. Grant privileges to app users (critical! otherwise 42501 permission denied) ──────┐
-docker exec user-db psql -U yingo -d cold_user -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO colduser; GRANT USAGE ON SCHEMA public TO colduser;"
+# 鈹屸攢鈹€鈹€鈹€鈹€鈹€ 3. Grant privileges to app users (critical! otherwise 42501 permission denied) 鈹€鈹€鈹€鈹€鈹€鈹€鈹?docker exec user-db psql -U yingo -d cold_user -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO colduser; GRANT USAGE ON SCHEMA public TO colduser;"
 docker exec chat-db psql -U yingo -d cold_chat -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO coldchat; GRANT USAGE ON SCHEMA public TO coldchat;"
 
-# ┌────── 4. Flush Redis (hot messages / online state cache) ──────┐
-docker exec chat-cache redis-cli FLUSHALL
+# 鈹屸攢鈹€鈹€鈹€鈹€鈹€ 4. Flush Redis (hot messages / online state cache) 鈹€鈹€鈹€鈹€鈹€鈹€鈹?docker exec chat-cache redis-cli FLUSHALL
 
-# ┌────── 5. Restart services to invalidate connection pools / in-memory caches ──────┐
-docker restart user-service chat-service
+# 鈹屸攢鈹€鈹€鈹€鈹€鈹€ 5. Restart services to invalidate connection pools / in-memory caches 鈹€鈹€鈹€鈹€鈹€鈹€鈹?docker restart user-service chat-service
 
-# ┌────── 6. Verify ──────┐
-docker exec user-db psql -U yingo -d cold_user -c "\dt"
+# 鈹屸攢鈹€鈹€鈹€鈹€鈹€ 6. Verify 鈹€鈹€鈹€鈹€鈹€鈹€鈹?docker exec user-db psql -U yingo -d cold_user -c "\dt"
 docker exec chat-db psql -U yingo -d cold_chat -c "\dt"
 curl -k https://server.344977.xyz:9000/api/v1/health
 curl -k https://server.344977.xyz:9001/api/v1/health
@@ -254,7 +247,7 @@ docker run -d --name user-service --network yingo-net \
   -e REDIS_URL="redis://chat-cache:6379" \
   -v /etc/ssl/yingo:/etc/ssl/yingo:ro \
   --restart unless-stopped \
-  ghcr.io/yingo-server/yingo-user:6.3-stable-raw
+  ghcr.io/yingo-server/yingo-user:v6.4-stable-Whitenight
 ```
 
 ### 5. Start the Chat Service
@@ -275,7 +268,7 @@ docker run -d --name chat-service --network yingo-net \
   -e TOKEN_SECRET="dev-token-secret-change-in-production" \
   -v /etc/ssl/yingo:/etc/ssl/yingo:ro \
   --restart unless-stopped \
-  ghcr.io/yingo-server/yingo-chat:6.3-stable-raw
+  ghcr.io/yingo-server/yingo-chat:v6.4-stable-Whitenight
 ```
 
 ### 6. Verify
@@ -375,7 +368,7 @@ docker run -d --name user-service --network yingo-net \
   -e INTERNAL_API_KEY="<INTERNAL_API_KEY>" \
   -v <SSL_CERT_DIR>:/etc/ssl/yingo:ro \
   --restart unless-stopped \
-  ghcr.io/yingo-server/yingo-user:6.3-stable-raw
+  ghcr.io/yingo-server/yingo-user:v6.4-stable-Whitenight
 ```
 
 ### 7. Start the Chat Service
@@ -396,7 +389,7 @@ docker run -d --name chat-service --network yingo-net \
   -e TOKEN_SECRET="<TOKEN_SECRET>" \
   -v <SSL_CERT_DIR>:/etc/ssl/yingo:ro \
   --restart unless-stopped \
-  ghcr.io/yingo-server/yingo-chat:6.3-stable-raw
+  ghcr.io/yingo-server/yingo-chat:v6.4-stable-Whitenight
 ```
 
 ### 8. Frontend Deployment
@@ -513,7 +506,7 @@ docker rm user-service chat-service
 #!/bin/bash
 set -e
 
-TAG=${1:-6.3-stable-raw}
+TAG=${1:-v6.4-stable-Whitenight}
 
 docker login ghcr.io -u yingo-server -p <GITHUB_PAT>
 docker pull ghcr.io/yingo-server/yingo-user:$TAG
@@ -597,18 +590,18 @@ npm run build
 
 The following are **defects that must be fixed**, sorted by severity.
 
-#### P0 — Will cause crashes / data loss
+#### P0 鈥?Will cause crashes / data loss
 
 | # | File:Line | Defect | Impact |
 |---|-----------|--------|--------|
-| 1 | `MessageItem.tsx` | `senderName.slice(0,2).toUpperCase()` — when `senderName` is empty string, `""` becomes `"undefined"` displayed | Abnormal avatar display |
+| 1 | `MessageItem.tsx` | `senderName.slice(0,2).toUpperCase()` 鈥?when `senderName` is empty string, `""` becomes `"undefined"` displayed | Abnormal avatar display |
 | 2 | `MessageItem.tsx` | `message.senderId === user?.id` crashes when `user` is null | White screen |
-| 3 | `ChatPage.tsx` | `rooms.find(r => r.id === currentRoomId)` — when room not found, all subsequent destructuring crashes | White screen |
+| 3 | `ChatPage.tsx` | `rooms.find(r => r.id === currentRoomId)` 鈥?when room not found, all subsequent destructuring crashes | White screen |
 | 4 | `useUIStore.ts` | `window.innerWidth >= 768` crashes in SSR / no-window environments | White screen on first paint |
 | 5 | `useMessageStore.ts` | Concurrent fetchMessages interleave; new request's prepend gets overwritten by stale request | Message list scrambled |
 | 6 | `useRoomStore.ts` | createDirect/createGroup failure has no rollback; UI updated but data not created | Dirty room list |
 
-#### P1 — Functional defects (user-visible wrong behavior)
+#### P1 鈥?Functional defects (user-visible wrong behavior)
 
 | # | File | Defect | Impact |
 |---|------|--------|--------|
@@ -618,7 +611,7 @@ The following are **defects that must be fixed**, sorted by severity.
 | 10 | `ChatPage.tsx` | reconnecting state: `setReconnecting(false)` after 5s while actually still reconnecting | Misleading reconnect indicator |
 | 11 | `MessageInput.tsx` | After send failure, setText(content) but cursor position lost | User must re-click the input |
 | 12 | `useSocket.ts` | sendMessage timeout 10s; guaranteed timeout on weak networks | Message send fails on weak networks |
-| 13 | `CreateRoom.tsx` | `memberIds.length > 0 ? memberIds : undefined` — empty array passes undefined | Group creation parameter anomaly |
+| 13 | `CreateRoom.tsx` | `memberIds.length > 0 ? memberIds : undefined` 鈥?empty array passes undefined | Group creation parameter anomaly |
 | 14 | `Header.tsx` | When permission is null, admin badge not shown even if user is admin | Admin features invisible |
 | 15 | `ProfilePage.tsx` | adminGetUser failure swallowed by catch; user sees blank page | No feedback when viewing others fails |
 | 16 | `useRoomStore.ts` | fetchRooms() failure has no error state; UI silent | Room list load failure is silent |
@@ -629,7 +622,7 @@ The following are **defects that must be fixed**, sorted by severity.
 | 21 | `api/client.ts` | 10s timeout too short; large messages on weak networks always fail | Large file upload timeout |
 | 22 | `vite.config.ts` | /chat-api proxy points at localhost:9001 but client.ts baseUrl="" never triggers it | Dev proxy exists in name only |
 
-#### P2 — Security defects
+#### P2 鈥?Security defects
 
 | # | File | Defect | Impact |
 |---|------|--------|--------|
@@ -638,7 +631,7 @@ The following are **defects that must be fixed**, sorted by severity.
 | 25 | `useSocket.ts` | longToken read from localStorage with no encryption | Plaintext token exposure |
 | 26 | `useAuthStore.ts` | fetchMe() failure clears all auth state, duplicated with client.ts 401 handling | Double-clear causes flicker redirect |
 
-#### P3 — Type / compile defects
+#### P3 鈥?Type / compile defects
 
 | # | File | Defect | Impact |
 |---|------|--------|--------|

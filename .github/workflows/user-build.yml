@@ -1,4 +1,4 @@
-name: Build User Service
+﻿name: Build User Service
 
 on:
   push:
@@ -37,7 +37,7 @@ jobs:
           images: ${{ env.GHCR_REPO }}
           tags: |
             type=raw,value=latest
-            type=raw,value=6.3-stable-raw
+            type=raw,value=v6.4-stable-Whitenight
             type=sha,prefix=
 
       - name: Build and Push
