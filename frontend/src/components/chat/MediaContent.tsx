@@ -5,10 +5,38 @@ import type { Media } from "@/types/models"
 import { cn } from "@/lib/utils"
 
 const mediaCache = new Map<string, Media>()
+const MAX_CACHE_ENTRIES = 100
+const MAX_CACHE_BYTES = 128 * 1024 * 1024
+let cacheBytes = 0
+
+function cacheGet(id: string): Media | undefined {
+  const media = mediaCache.get(id)
+  if (media) {
+    mediaCache.delete(id)
+    mediaCache.set(id, media)
+  }
+  return media
+}
+
+function cacheSet(id: string, media: Media) {
+  const prev = mediaCache.get(id)
+  if (prev) cacheBytes -= prev.dataUrl?.length ?? 0
+  mediaCache.delete(id)
+  mediaCache.set(id, media)
+  cacheBytes += media.dataUrl?.length ?? 0
+  while (mediaCache.size > MAX_CACHE_ENTRIES || cacheBytes > MAX_CACHE_BYTES) {
+    const oldestKey = mediaCache.keys().next().value as string | undefined
+    if (!oldestKey) break
+    const oldest = mediaCache.get(oldestKey)
+    if (!oldest) break
+    cacheBytes -= oldest.dataUrl?.length ?? 0
+    mediaCache.delete(oldestKey)
+  }
+}
 
 function useMedia(mediaId: string): { media: Media | null; error: boolean; loading: boolean } {
   const [state, setState] = useState<{ media: Media | null; error: boolean; loading: boolean }>(() => {
-    const cached = mediaCache.get(mediaId)
+    const cached = cacheGet(mediaId)
     return cached ? { media: cached, error: false, loading: false } : { media: null, error: false, loading: true }
   })
 
@@ -19,7 +47,7 @@ function useMedia(mediaId: string): { media: Media | null; error: boolean; loadi
       .then((res) => {
         if (cancelled) return
         if (res.ok) {
-          mediaCache.set(mediaId, res.media)
+          cacheSet(mediaId, res.media)
           setState({ media: res.media, error: false, loading: false })
         } else {
           setState({ media: null, error: true, loading: false })

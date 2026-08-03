@@ -8,30 +8,6 @@ export interface User {
   lastOnlineAt: number
 }
 
-export interface Token {
-  id: string
-  userId: string
-  scopes: string
-  shortExpires: number
-  longExpires: number
-  createdAt: number
-  revokedAt: number | null
-  lastUsedAt: number | null
-}
-
-export interface ApiKey {
-  id: string
-  userId: string
-  prefix: string
-  name: string
-  scopes: string
-  rateLimit: number
-  expiresAt: number
-  createdAt: number
-  lastUsedAt: number | null
-  revokedAt: number | null
-}
-
 export interface Room {
   id: string
   type: "direct" | "group"
@@ -53,7 +29,6 @@ export interface Message {
   content: string
   type: "text" | "image" | "file" | "system"
   sentAt: number
-  senderIp: string
   recalled: boolean
   manuallyDeleted: boolean
   autoDeleted: boolean
@@ -70,18 +45,4 @@ export interface Media {
   ownerId: string
   createdAt: number
   dataUrl?: string
-}
-
-export interface RoomMember {
-  id: string
-  roomId: string
-  userId: string
-  joinedAt: number
-}
-
-export interface Stats {
-  rooms: number
-  members: number
-  coldMessages: number
-  onlineUsers: number
 }

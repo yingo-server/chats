@@ -56,7 +56,6 @@ class ApiClient {
           localStorage.removeItem("yingo_auth")
           window.dispatchEvent(new CustomEvent("yingo:logout"))
           window.dispatchEvent(new CustomEvent("yingo:toast", { detail: { message: "Session expired, please log in again", type: "error" } }))
-          window.location.replace("/login")
         }
       }
       throw new Error("unauthorized")

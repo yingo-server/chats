@@ -19,7 +19,3 @@ export function timeFull(ts: number): string {
   if (!ts || !Number.isFinite(ts)) return ""
   return new Date(ts).toLocaleString()
 }
-
-export function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
-}

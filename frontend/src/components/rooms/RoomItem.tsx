@@ -50,6 +50,11 @@ export function RoomItem({ room, active, onClick, onOpenMenu }: RoomItemProps) {
     longPressTimer.current = setTimeout(() => {
       suppressClickRef.current = true
       onOpenMenu(room, x, y)
+      // Auto-reset in case the gesture ends without a click (e.g. touchcancel),
+      // so the suppression cannot leak into the next tap.
+      setTimeout(() => {
+        suppressClickRef.current = false
+      }, 350)
     }, 700)
   }
 

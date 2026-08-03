@@ -23,7 +23,9 @@ export function Header() {
     navigate("/login")
   }
 
-  const initials = user?.globalName?.slice(0, 2)?.toUpperCase() || "??"
+  const initials = user
+    ? (user.globalName?.slice(0, 2)?.toUpperCase() || user.id.slice(0, 2).toUpperCase())
+    : "…"
 
   return (
     <header className="flex h-14 items-center gap-4 border-b bg-background px-4">

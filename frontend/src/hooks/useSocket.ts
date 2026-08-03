@@ -36,11 +36,13 @@ export function useSocket() {
     socket.on("v1:message", (msg: Message) => {
       const myId = useAuthStore.getState().userId
       if (msg.senderId !== myId) playMessageSound()
-      const { lastRoomId } = useMessageStore.getState()
-      if (lastRoomId === msg.roomId) {
+      const { lastRoomId, mediaType } = useMessageStore.getState()
+      const isCurrentRoom = lastRoomId === msg.roomId
+      const matchesFilter = !mediaType || msg.mediaType === mediaType
+      if (isCurrentRoom && matchesFilter) {
         useMessageStore.getState().prependMessage(msg)
-      } else {
-        useRoomStore.getState().onIncomingMessage(msg)
+      } else if (msg.senderId !== myId) {
+        useRoomStore.getState().onIncomingMessage(msg, isCurrentRoom && !matchesFilter)
       }
     })
 

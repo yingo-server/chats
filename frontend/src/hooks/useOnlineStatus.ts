@@ -31,10 +31,21 @@ function handleOnlineEvent(e: Event) {
   notify()
 }
 
+function reset() {
+  onlineMap = {}
+  order.length = 0
+  notify()
+}
+
+function handleLogout() {
+  reset()
+}
+
 function subscribe(listener: () => void) {
   if (!started) {
     started = true
     window.addEventListener("yingo:online", handleOnlineEvent)
+    window.addEventListener("yingo:logout", handleLogout)
   }
   listeners.add(listener)
   return () => {

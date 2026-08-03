@@ -1,5 +1,5 @@
 import { useParams } from "react-router"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRoomStore } from "@/stores/useRoomStore"
 import { useSocket } from "@/hooks/useSocket"
 import { MessageList } from "@/components/chat/MessageList"
@@ -34,19 +34,25 @@ export default function ChatPage() {
   }, [currentRoomId, clearUnread])
 
   useEffect(() => {
-    if (connected && rooms.length > 0) {
+    if (rooms.length > 0) {
       joinRooms(rooms.map((r) => r.id))
     }
-  }, [connected, rooms, joinRooms])
+  }, [rooms, joinRooms])
 
+  const hasConnectedRef = useRef(false)
   useEffect(() => {
-    if (!connected && currentRoomId) {
-      setReconnecting(true)
-      const timer = setTimeout(() => setReconnecting(false), 5000)
-      return () => clearTimeout(timer)
-    } else {
+    if (connected) {
+      hasConnectedRef.current = true
       setReconnecting(false)
+      return
     }
+    if (!currentRoomId || !hasConnectedRef.current) {
+      setReconnecting(false)
+      return
+    }
+    setReconnecting(true)
+    const timer = setTimeout(() => setReconnecting(false), 5000)
+    return () => clearTimeout(timer)
   }, [connected, currentRoomId])
 
   const room = rooms.find((r) => r.id === (roomId || currentRoomId))

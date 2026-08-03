@@ -51,7 +51,7 @@ export default function ProfilePage() {
     }).catch(() => setLoadError(true)).finally(() => setLoading(false))
   }, [id, isOwn, user])
 
-  if (loading) {
+  if (loading || (isOwn && !displayUser && !loadError)) {
     return (
       <div className="flex h-full items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />

@@ -16,7 +16,7 @@ interface RoomState {
   upsertRoom: (room: Room) => void
   removeRoom: (id: string) => void
   setRoomNote: (roomId: string, note: string) => void
-  onIncomingMessage: (msg: Message) => void
+  onIncomingMessage: (msg: Message, force?: boolean) => void
   clearUnread: (roomId: string) => void
 }
 
@@ -94,9 +94,9 @@ export const useRoomStore = create<RoomState>((set, get) => ({
     }))
   },
 
-  onIncomingMessage: (msg) => {
+  onIncomingMessage: (msg: Message, force = false) => {
     set((state) => {
-      if (state.currentRoomId === msg.roomId) return state
+      if (!force && state.currentRoomId === msg.roomId) return state
       const room = state.rooms.find((r) => r.id === msg.roomId)
       if (!room) return state
       const unread = { ...state.unread, [msg.roomId]: (state.unread[msg.roomId] || 0) + 1 }

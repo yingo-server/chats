@@ -1,5 +1,4 @@
 export type MediaType = "image" | "audio" | "video" | "file"
-export const MEDIA_TYPES: MediaType[] = ["image", "audio", "video", "file"]
 
 export const MAX_MEDIA_BYTES = 30 * 1024 * 1024
 
