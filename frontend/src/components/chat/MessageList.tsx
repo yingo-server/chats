@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from "react"
+import { Loader2 } from "lucide-react"
 import { useMessageStore } from "@/stores/useMessageStore"
 import { useRoomStore } from "@/stores/useRoomStore"
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll"
@@ -17,7 +18,7 @@ const FILTERS: { key: MediaType | null; label: string }[] = [
 
 export function MessageList() {
   const currentRoomId = useRoomStore((s) => s.currentRoomId)
-  const { messages, hasMore, loading, fetchMessages, fetchMore, mediaType, setMediaType } = useMessageStore()
+  const { messages, hasMore, loading, fetchMessages, fetchMore, mediaType, setMediaType, pendingMessages } = useMessageStore()
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const fetchIdRef = useRef(0)
@@ -32,6 +33,14 @@ export function MessageList() {
     const el = containerRef.current
     return el ? el.scrollHeight - el.scrollTop - el.clientHeight < 160 : false
   }
+
+  const visiblePending = pendingMessages.filter(
+    (p) => p.roomId === currentRoomId && (!mediaType || p.kind === mediaType)
+  )
+
+  useEffect(() => {
+    if (visiblePending.length > 0 && isNearBottom()) scrollToBottom()
+  }, [visiblePending.length])
 
   useEffect(() => {
     if (!currentRoomId) return
@@ -111,7 +120,19 @@ export function MessageList() {
             .map((msg) => (
               <MessageItem key={msg.id} message={msg} />
             ))}
-          {messages.length === 0 && !loading && (
+          {visiblePending.map((p) => (
+            <div key={p.id} className="flex flex-row-reverse gap-3 px-4 py-1.5">
+              <div className="flex max-w-[70%] flex-col items-end gap-0.5">
+                <div className="flex items-center gap-2 self-end rounded-xl bg-primary px-3 py-1.5 text-sm text-primary-foreground opacity-80">
+                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                  <span className="max-w-[220px] truncate">{p.fileName}</span>
+                  <span className="shrink-0 text-[10px] opacity-70">{formatBytes(p.size)}</span>
+                </div>
+                <span className="text-[10px] text-muted-foreground">Uploading…</span>
+              </div>
+            </div>
+          ))}
+          {messages.length === 0 && visiblePending.length === 0 && !loading && (
             <div className="py-10 text-center text-xs text-muted-foreground">
               {mediaType ? `No ${mediaType} messages yet` : "No messages yet"}
             </div>
@@ -121,4 +142,10 @@ export function MessageList() {
       </div>
     </div>
   )
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`
 }

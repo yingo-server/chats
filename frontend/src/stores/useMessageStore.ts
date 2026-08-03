@@ -3,6 +3,14 @@ import type { Message } from "@/types/models"
 import type { MediaType } from "@/lib/media"
 import * as chatApi from "@/api/chat"
 
+export interface PendingMessage {
+  id: string
+  roomId: string
+  fileName: string
+  size: number
+  kind: MediaType
+}
+
 interface MessageState {
   messages: Message[]
   hasMore: boolean
@@ -10,11 +18,14 @@ interface MessageState {
   loading: boolean
   lastRoomId: string | null
   mediaType: MediaType | null
+  pendingMessages: PendingMessage[]
   setMediaType: (t: MediaType | null) => void
   _fetchGen: number
   fetchMessages: (roomId: string, reset?: boolean) => Promise<void>
   fetchMore: (roomId: string) => Promise<void>
   prependMessage: (msg: Message) => void
+  addPending: (p: PendingMessage) => void
+  removePending: (id: string) => void
   reset: () => void
 }
 
@@ -26,6 +37,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   lastRoomId: null,
   mediaType: null,
   _fetchGen: 0,
+  pendingMessages: [],
 
   setMediaType: (t) => set({ mediaType: t }),
 
@@ -87,5 +99,16 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     })
   },
 
-  reset: () => set({ messages: [], hasMore: false, cursor: null, loading: false, lastRoomId: null, _fetchGen: 0 }),
+  addPending: (p) => {
+    set((state) => {
+      if (state.pendingMessages.some((x) => x.id === p.id)) return state
+      return { pendingMessages: [...state.pendingMessages, p] }
+    })
+  },
+
+  removePending: (id) => {
+    set((state) => ({ pendingMessages: state.pendingMessages.filter((p) => p.id !== id) }))
+  },
+
+  reset: () => set({ messages: [], hasMore: false, cursor: null, loading: false, lastRoomId: null, _fetchGen: 0, pendingMessages: [] }),
 }))

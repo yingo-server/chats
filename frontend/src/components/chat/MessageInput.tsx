@@ -1,12 +1,14 @@
 import { useState, useRef, useEffect } from "react"
 import { Send, Paperclip } from "lucide-react"
 import { useRoomStore } from "@/stores/useRoomStore"
+import { useMessageStore } from "@/stores/useMessageStore"
 import { useSocket } from "@/hooks/useSocket"
 import { useToast } from "@/components/ui/toast"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import * as chatApi from "@/api/chat"
 import { fileToUploadDataUrl } from "@/lib/media"
+import type { MediaType } from "@/lib/media"
 
 export function MessageInput() {
   const currentRoomId = useRoomStore((s) => s.currentRoomId)
@@ -39,9 +41,14 @@ export function MessageInput() {
     setText("")
     try {
       await sendMessage(currentRoomId, content)
-    } catch {
+    } catch (e: any) {
       setText(content)
-      addToast("Message failed to send", "error")
+      addToast(
+        e?.message === "send timeout"
+          ? "Message may have been sent. Check before resending."
+          : "Message failed to send",
+        "error"
+      )
     }
   }
 
@@ -55,23 +62,35 @@ export function MessageInput() {
   const handleFileSelected = async (file: File | undefined) => {
     if (!file || !currentRoomId || sendingMedia) return
     const isVideo = file.type.startsWith("video/")
+    const kind: MediaType = file.type.startsWith("image/")
+      ? "image"
+      : file.type.startsWith("audio/")
+        ? "audio"
+        : file.type.startsWith("video/")
+          ? "video"
+          : "file"
+    const pendingId = `pending-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     setSendingMedia(true)
     if (isVideo) setVideoOverlay(true)
+    useMessageStore.getState().addPending({
+      id: pendingId,
+      roomId: currentRoomId,
+      fileName: file.name,
+      size: file.size,
+      kind,
+    })
     try {
       const dataUrl = await fileToUploadDataUrl(file)
       const upload = chatApi.uploadMedia({ dataUrl })
-      if (isVideo) {
-        const [res] = await Promise.all([upload, new Promise((r) => setTimeout(r, 7000))])
-        if (!res.ok) throw new Error(res.error)
-        await sendMessage(currentRoomId, "", "text", res.media.id)
-      } else {
-        const res = await upload
-        if (!res.ok) throw new Error(res.error)
-        await sendMessage(currentRoomId, "", "text", res.media.id)
-      }
+      const res = isVideo
+        ? (await Promise.all([upload, new Promise((r) => setTimeout(r, 7000))]))[0]
+        : await upload
+      if (!res.ok) throw new Error(res.error)
+      await sendMessage(currentRoomId, "", "text", res.media.id)
     } catch (e: any) {
       addToast(e?.message || "Failed to send attachment", "error")
     } finally {
+      useMessageStore.getState().removePending(pendingId)
       setVideoOverlay(false)
       setSendingMedia(false)
       clearInput()
